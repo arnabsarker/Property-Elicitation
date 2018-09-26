@@ -11,6 +11,7 @@ def generate_argmax_data(k, d, num_samples):
     cov = np.eye(d)
     for i in range(0, num_samples):
         vec = np.random.multivariate_normal(mean, cov)
+        vec = vec / np.linalg.norm(vec)
         X[i, ] = vec
 
         true_y = get_closest_vector(W, vec, k)
@@ -34,6 +35,7 @@ def generate_softmax_data(k, d, num_samples):
         true_y = np.random.randint(0, k)
 
         vec = np.random.multivariate_normal(W[true_y, ], cov)
+        vec = vec / np.linalg.norm(vec)
         X[i, ] = vec
         Y_dist = np.exp(np.matmul(W, vec))
         Y_dist = Y_dist / np.sum(Y_dist)
@@ -72,7 +74,7 @@ def get_closest_vector(W, vec, k):
     return y
 
 def main():
-    (W, X, Y, mistakes, true_Y) = generate_softmax_data(15, 10, 5)
+    print(generate_softmax_data(15, 10, 5))
     return 1
 
 if __name__ == '__main__':
