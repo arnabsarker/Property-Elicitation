@@ -7,7 +7,7 @@ import scipy
 ## is proportional to how close it is to that barrier
 def generate_quantile_data(d, k, n, portions):
     ## Vector that classification will be based on
-    w = np.array([1/d]*d)
+    w = np.array([1]*d)
     scaling = portions[-1]
 
     ## Generate points
@@ -15,7 +15,7 @@ def generate_quantile_data(d, k, n, portions):
     points_on_line = projection_points * w
 
     #Ensure noise in range as to not mess with classification too much
-    noise = np.reshape(np.matrix(np.random.normal(0, scaling / (16*d), n*d)), (n, d))
+    noise = np.reshape(np.matrix(np.random.normal(0, 1, n*d)), (n, d))
     noise = noise - np.dot(noise, w).T * w
     X = points_on_line + noise
 
@@ -115,3 +115,24 @@ def get_many_class_quantiles(projection_points, portions, k, alpha):
         probs = np.asarray(probs / np.sum(probs))
         y[i] = np.argmax(np.cumsum(probs) > alpha)
     return y
+
+## By using the uniform distribution, we can generate uniform spacings on the unit interval
+## (see di Finetti's theorem)
+def generate_simplex_data(k, n):
+    X = np.random.uniform(size=[n, k-1])
+    X = np.sort(X)
+    
+    classes = np.random.uniform(size=[n,1])
+    y = np.zeros_like(classes)
+    for i in range(0, n):
+        curr_vec = X[i,:]
+        pointer = classes[i,0]
+        
+        if(pointer < curr_vec[0]):
+            y[i, 0] = 0
+        elif(pointer > curr_vec[-1]):
+            y[i,0] = k - 1
+        else:
+            y[i,0] = np.argmax(curr_vec > classes[i,0])
+        
+    return X, y

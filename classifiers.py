@@ -188,11 +188,8 @@ def log_loss(Z):
     return out
 
 def direct_loss(Z):
-    # Weighted surrogate loss
-    idx = Z > 0
-    out = np.zeros_like(Z)
-    out[idx] = 0
-    out[~idx] = -Z[~idx]
+    # Weighted surrogate 
+    out = np.max(1 - Z, 0)
     return out
 
 def obj_margin(x0, X, y, alpha, n_class, weights, L, sample_weight):
@@ -216,9 +213,9 @@ def obj_margin(x0, X, y, alpha, n_class, weights, L, sample_weight):
     obj += alpha * 0.5 * (np.dot(w, w))
     return obj
 
-def obj_margin_direct(x0, X, y, alpha, n_class, weights, L, sample_weight):
+def obj_direct(x0, X, y, alpha, gamma, n_class, weights, L, sample_weight):
     """
-    Objective function for the general margin-based formulation
+    Objective function for the direct minimization of weighted error
     """
 
     w = x0[:X.shape[1]]
@@ -226,16 +223,41 @@ def obj_margin_direct(x0, X, y, alpha, n_class, weights, L, sample_weight):
     theta = L.dot(c)
     loss_fd = weights[y]
 
-    Xw = X.dot(w)
-    Alpha = theta[:, None] - Xw  # (n_class - 1, n_samples)
-    S = np.sign(np.arange(n_class - 1)[:, None] - y + 0.5)
+    tmp = theta[:, None] - np.asarray(X.dot(w))
+    preds = np.sum(tmp < 0, axis=0).astype(np.int)
 
-    err = loss_fd.T * direct_loss(S * Alpha)
+    zs = np.zeros_like(y)
+    err = (1 - gamma) * np.maximum(preds - y, zs) + gamma * np.maximum(y - preds, zs)
     if sample_weight is not None:
         err *= sample_weight
     obj = np.sum(err)
-    #obj += alpha * 0.5 * (np.dot(w, w))
     return obj
+
+def grad_direct(x0, X, y, alpha, gamma, n_class, weights, L, sample_weight):
+    """
+    Gradient for the direct minimization of weighted error
+    """
+
+    w = x0[:X.shape[1]]
+    c = x0[X.shape[1]:]
+    theta = L.dot(c)
+    loss_fd = weights[y]
+
+    tmp = theta[:, None] - np.asarray(X.dot(w))
+    preds = np.sum(tmp < 0, axis=0).astype(np.int)
+    
+    S = np.sign(np.arange(n_class - 1)[:, None] - y + 0.5)
+
+    zs = np.zeros_like(y)
+    Sigma = S * ((1 - gamma) * (1 * np.maximum(preds - y, zs) > 0) + gamma * (1 * np.maximum(y - preds, zs) > 0))
+    if sample_weight is not None:
+        Sigma *= sample_weight
+
+    grad_w = X.T.dot(Sigma.sum(0))
+
+    grad_theta = -Sigma.sum(1)
+    grad_c = L.T.dot(grad_theta)
+    return np.concatenate((grad_w, grad_c), axis=0)
 
 def grad_margin(x0, X, y, alpha, n_class, weights, L, sample_weight):
     """
@@ -379,9 +401,9 @@ def threshold_fit_quantile(X, y, alpha, gamma, n_class, mode='QE',
             args=(X, y, alpha, n_class, loss_fd, L, sample_weight),
             tol=tol)
     else:
-        sol = optimize.minimize(obj_margin_direct, x0, method='L-BFGS-B',
-            bounds=bounds, options=options,
-            args=(X, y, alpha, n_class, loss_fd, L, sample_weight),
+        sol = optimize.minimize(obj_direct, x0, method='L-BFGS-B',
+            jac=grad_direct, bounds=bounds, options=options,
+            args=(X, y, alpha, gamma, n_class, loss_fd, L, sample_weight),
             tol=tol)
     
     if verbose and not sol.success:
@@ -490,7 +512,7 @@ class LogisticQuantileAT(base.BaseEstimator):
             y,
             sample_weight=sample_weight)
     
-class LogisticQuantileDirect(base.BaseEstimator):
+class DirectQuantile(base.BaseEstimator):
     """
     Classifier that implements the ordinal logistic model for quantile estimation
 
