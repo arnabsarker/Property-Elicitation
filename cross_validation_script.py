@@ -1,7 +1,6 @@
 import numpy as np
 from sklearn import base, metrics
 from sklearn.model_selection import KFold
-import pandas as pd
 from classifiers import *
 from data_generation import *
 import sys
@@ -29,8 +28,9 @@ def run_cross_validation(X_train, y_train):
     q_vals = [2, 3, 4, 5]
     gamma_vals = [10**(-1), 10**0, 10**1, 10**2]
 
-    cv_results = pd.DataFrame(columns=['Fold', 'Quantile', 'Surrogate', 
-                                       'Kernel_Type', 'Kernel_Parameter', 'Regularization', '01_Loss'])
+    cv_results_file = open('cv_results.csv', "w")
+    cv_results_file.write('Fold,Quantile,Surrogate,Kernel_Type,Kernel_Parameter,Regularization,01_Loss\n')
+
 
     kf = KFold(n_splits=5)
     kf.get_n_splits(X_train)
@@ -47,32 +47,28 @@ def run_cross_validation(X_train, y_train):
                     clf1 = LogisticQuantileIT(gamma=a, alpha=1., kernel_type='poly', kernel_param=q)
                     clf1.fit(curr_X_train, curr_y_train)
                     lossIT = metrics.zero_one_loss(clf1.predict(curr_X_test), a_test_quantiles , normalize=False)
-                    result = {'Fold': fold, 'Quantile': a, 'Surrogate': 'IT', 'Kernel_Type': 'poly', 
-                              'Kernel_Parameter': q, 'Regularization': reg, '01_Loss': lossIT}
-                    cv_results = cv_results.append(result, ignore_index=True)
+                    result_string = str(fold) + ',' + str(a) + ',' + 'IT' + ',' + 'poly' + ',' + str(q) + ',' + str(reg) + ',' + str(lossIT)
+                    cv_results_file.write(result_string + '\n')
 
                     clf2 = LogisticQuantileAT(gamma=a, alpha=1., kernel_type='poly', kernel_param=q)
                     clf2.fit(curr_X_train, curr_y_train)
                     lossAT = metrics.zero_one_loss(clf2.predict(curr_X_test), a_test_quantiles , normalize=False)
-                    result = {'Fold': fold, 'Quantile': a, 'Surrogate': 'AT', 'Kernel_Type': 'poly', 
-                              'Kernel_Parameter': q, 'Regularization': reg, '01_Loss': lossAT}
-                    cv_results = cv_results.append(result, ignore_index=True)
+                    result_string = str(fold) + ',' + str(a) + ',' + 'AT' + ',' + 'poly' + ','+ str(q) + ',' + str(reg) + ',' + str(lossAT)
+                    cv_results_file.write(result_string + '\n')
 
                 for g in gamma_vals:
                     clf1 = LogisticQuantileIT(gamma=a, alpha=1., kernel_type='rbf', kernel_param=g)
                     clf1.fit(curr_X_train, curr_y_train)
                     lossIT = metrics.zero_one_loss(clf1.predict(curr_X_test), a_test_quantiles , normalize=False)
-                    result = {'Fold': fold, 'Quantile': a, 'Surrogate': 'IT', 'Kernel_Type': 'rbf', 
-                              'Kernel_Parameter': g, 'Regularization': reg, '01_Loss': lossIT}
-                    cv_results = cv_results.append(result, ignore_index=True)
+                    result_string = str(fold) + ',' + str(a) + ',' + 'IT' + ',' + 'rbf' + ',' + str(g) + ',' + str(reg) + ',' + str(lossIT)
+                    cv_results_file.write(result_string + '\n')
 
                     clf2 = LogisticQuantileAT(gamma=a, alpha=1., kernel_type='rbf', kernel_param=g)
                     clf2.fit(curr_X_train, curr_y_train)
                     lossAT = metrics.zero_one_loss(clf2.predict(curr_X_test), a_test_quantiles , normalize=False)
-                    result = {'Fold': fold, 'Quantile': a, 'Surrogate': 'AT', 'Kernel_Type': 'rbf', 
-                              'Kernel_Parameter': g, 'Regularization': reg, '01_Loss': lossAT}
-                    cv_results = cv_results.append(result, ignore_index=True)
-    return cv_results
+                    result_string = str(fold) + ',' + str(a) + ',' + 'AT' + ',' + 'rbf' + ',' + str(g) + ',' + str(reg) + ',' + str(lossAT)
+                    cv_results_file.write(result_string + '\n')
+    cv_results_file.close()
 
 
 if __name__ == '__main__':
@@ -82,7 +78,5 @@ if __name__ == '__main__':
     np.savetxt('X_train.csv', X_train, delimiter=',')
     np.savetxt('y_train.csv', y_train, delimiter=',')
     
-    cv_results = run_cross_validation(X_train, y_train)
-    
-    cv_results.to_csv('cv_results.csv', index=False)
+    run_cross_validation(X_train, y_train)
     
