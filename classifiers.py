@@ -192,7 +192,7 @@ def direct_loss(Z):
     out = np.max(1 - Z, 0)
     return out
 
-def obj_margin(x0, X, y, alpha, n_class, weights, L, sample_weight):
+def obj_margin(x0, X, y, alpha, n_class, weights, L, kernel_type, sample_weight):
     """
     Objective function for the general margin-based formulation
     """
@@ -210,10 +210,15 @@ def obj_margin(x0, X, y, alpha, n_class, weights, L, sample_weight):
     if sample_weight is not None:
         err *= sample_weight
     obj = np.sum(err)
-    obj += alpha * 0.5 * (np.dot(w, w))
+    
+    ## Regularization based on kernel 
+    if(kernel_type == 'linear'):
+        obj += alpha * 0.5 * (np.dot(w, w))
+    else:
+        obj += alpha * 0.5 * np.dot(np.matmul(w.T, X).T, w)
     return obj
 
-def obj_direct(x0, X, y, alpha, gamma, n_class, weights, L, sample_weight):
+def obj_direct(x0, X, y, alpha, gamma, n_class, weights, L, kernel_type, sample_weight):
     """
     Objective function for the direct minimization of weighted error
     """
@@ -231,9 +236,11 @@ def obj_direct(x0, X, y, alpha, gamma, n_class, weights, L, sample_weight):
     if sample_weight is not None:
         err *= sample_weight
     obj = np.sum(err)
+    
+    ## TODO: Add regularization
     return obj
 
-def grad_direct(x0, X, y, alpha, gamma, n_class, weights, L, sample_weight):
+def grad_direct(x0, X, y, alpha, gamma, n_class, weights, L, kernel_type, sample_weight):
     """
     Gradient for the direct minimization of weighted error
     """
@@ -259,7 +266,7 @@ def grad_direct(x0, X, y, alpha, gamma, n_class, weights, L, sample_weight):
     grad_c = L.T.dot(grad_theta)
     return np.concatenate((grad_w, grad_c), axis=0)
 
-def grad_margin(x0, X, y, alpha, n_class, weights, L, sample_weight):
+def grad_margin(x0, X, y, alpha, n_class, weights, L, kernel_type, sample_weight):
     """
     Gradient for the general margin-based formulation
     """
@@ -279,7 +286,10 @@ def grad_margin(x0, X, y, alpha, n_class, weights, L, sample_weight):
     if sample_weight is not None:
         Sigma *= sample_weight
 
-    grad_w = X.T.dot(Sigma.sum(0)) + alpha * w
+    if(kernel_type == 'linear'):
+        grad_w = X.T.dot(Sigma.sum(0)) + alpha * w
+    else:
+        grad_w = X.T.dot(Sigma.sum(0)) + 0.5 * alpha * (np.matmul(X.T, w) + np.matmul(X, w))
 
     grad_theta = -Sigma.sum(1)
     grad_c = L.T.dot(grad_theta)
@@ -347,9 +357,9 @@ def threshold_fit(X, y, alpha, n_class, mode='AE',
     theta = L.dot(c)
     return w, theta
 
-def threshold_fit_quantile(X, y, alpha, gamma, n_class, mode='QE',
-                  max_iter=1000, verbose=False, tol=1e-12,
-                  sample_weight=None):
+def threshold_fit_quantile(X, y, alpha, gamma, n_class, kernel_type, 
+                           mode='QE', max_iter=1000, verbose=False, tol=1e-12,
+                           sample_weight=None):
     """
     Solve the general threshold-based ordinal regression model
     using the logistic loss as surrogate of the 0-1 loss
@@ -398,12 +408,12 @@ def threshold_fit_quantile(X, y, alpha, gamma, n_class, mode='QE',
     if (mode != 'Direct'): 
         sol = optimize.minimize(obj_margin, x0, method='L-BFGS-B',
             jac=grad_margin, bounds=bounds, options=options,
-            args=(X, y, alpha, n_class, loss_fd, L, sample_weight),
+            args=(X, y, alpha, n_class, loss_fd, L, kernel_type, sample_weight),
             tol=tol)
     else:
         sol = optimize.minimize(obj_direct, x0, method='L-BFGS-B',
             jac=grad_direct, bounds=bounds, options=options,
-            args=(X, y, alpha, gamma, n_class, loss_fd, L, sample_weight),
+            args=(X, y, alpha, gamma, n_class, loss_fd, L, kernel_type, sample_weight),
             tol=tol)
     
     if verbose and not sol.success:
@@ -436,16 +446,27 @@ def threshold_proba(X, w, theta):
         constant_values=(0, 1))
     return np.diff(prob)
 
+def transform_kernel(X, train_set, kernel_type, kernel_param):
+    if(kernel_type == 'poly'):
+        K = metrics.pairwise.polynomial_kernel(X, train_set, degree=kernel_param)
+    elif(kernel_type == 'rbf'):
+        K = metrics.pairwise.rbf_kernel(X, train_set, gamma=kernel_param)
+    else:
+        K = X
+    return K
+
 class LogisticQuantileIT(base.BaseEstimator):
     """
     Classifier that implements the ordinal logistic model for quantile estimation
 
     """
-    def __init__(self, gamma=0.5, alpha=1., verbose=0, max_iter=1000):
+    def __init__(self, gamma=0.5, alpha=1., verbose=0, max_iter=1000, kernel_type='linear', kernel_param=1):
         self.gamma = gamma
         self.alpha = alpha
         self.verbose = verbose
         self.max_iter = max_iter
+        self.kernel_type = kernel_type
+        self.kernel_param = kernel_param
 
     def fit(self, X, y, sample_weight=None):
         _y = np.array(y).astype(np.int)
@@ -453,22 +474,33 @@ class LogisticQuantileIT(base.BaseEstimator):
             raise ValueError('y must only contain integer values')
         self.classes_ = np.unique(y)
         self.n_class_ = self.classes_.max() - self.classes_.min() + 1
+        
+        # Handle Kernel
+        self.train_set = X
+        K = transform_kernel(X, X, self.kernel_type, self.kernel_param)
+        
         y_tmp = y - y.min()  # we need classes that start at zero
         self.coef_, self.theta_ = threshold_fit_quantile(
-            X, y_tmp, self.alpha, self.gamma, self.n_class_,
+            K, y_tmp, self.alpha, self.gamma, self.n_class_, self.kernel_type,
             mode='0-1', verbose=self.verbose, max_iter=self.max_iter,
             sample_weight=sample_weight)
         return self
 
     def predict(self, X):
-        return threshold_predict(X, self.coef_, self.theta_) +\
+        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param)
+        
+        return threshold_predict(K, self.coef_, self.theta_) +\
          self.classes_.min()
 
     def predict_proba(self, X):
-        return threshold_proba(X, self.coef_, self.theta_)
+        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param)
+        
+        return threshold_proba(K, self.coef_, self.theta_)
 
     def score(self, X, y, sample_weight=None):
-        pred = self.predict(X)
+        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param)
+        
+        pred = self.predict(K)
         return metrics.accuracy_score(
             pred,
             y,
@@ -479,11 +511,13 @@ class LogisticQuantileAT(base.BaseEstimator):
     Classifier that implements the ordinal logistic model for quantile estimation
 
     """
-    def __init__(self, gamma=0.5, alpha=1., verbose=0, max_iter=1000):
+    def __init__(self, gamma=0.5, alpha=1., verbose=0, max_iter=1000, kernel_type='linear', kernel_param=1):
         self.gamma = gamma
         self.alpha = alpha
         self.verbose = verbose
         self.max_iter = max_iter
+        self.kernel_type = kernel_type
+        self.kernel_param = kernel_param
 
     def fit(self, X, y, sample_weight=None):
         _y = np.array(y).astype(np.int)
@@ -491,22 +525,30 @@ class LogisticQuantileAT(base.BaseEstimator):
             raise ValueError('y must only contain integer values')
         self.classes_ = np.unique(y)
         self.n_class_ = self.classes_.max() - self.classes_.min() + 1
+        
+        # Handle Kernel
+        self.train_set = X
+        K = transform_kernel(X, X, self.kernel_type, self.kernel_param)
+        
         y_tmp = y - y.min()  # we need classes that start at zero
         self.coef_, self.theta_ = threshold_fit_quantile(
-            X, y_tmp, self.alpha, self.gamma, self.n_class_,
+            K, y_tmp, self.alpha, self.gamma, self.n_class_, self.kernel_type,
             mode='AE', verbose=self.verbose, max_iter=self.max_iter,
             sample_weight=sample_weight)
         return self
 
     def predict(self, X):
-        return threshold_predict(X, self.coef_, self.theta_) +\
+        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param)
+        return threshold_predict(K, self.coef_, self.theta_) +\
          self.classes_.min()
 
     def predict_proba(self, X):
-        return threshold_proba(X, self.coef_, self.theta_)
+        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param)
+        return threshold_proba(K, self.coef_, self.theta_)
 
     def score(self, X, y, sample_weight=None):
-        pred = self.predict(X)
+        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param)
+        pred = self.predict(K)
         return metrics.accuracy_score(
             pred,
             y,
@@ -531,7 +573,7 @@ class DirectQuantile(base.BaseEstimator):
         self.n_class_ = self.classes_.max() - self.classes_.min() + 1
         y_tmp = y - y.min()  # we need classes that start at zero
         self.coef_, self.theta_ = threshold_fit_quantile(
-            X, y_tmp, self.alpha, self.gamma, self.n_class_,
+            X, y_tmp, self.alpha, self.gamma, self.n_class_, self.kernel_type,
             mode='Direct', verbose=self.verbose, max_iter=self.max_iter,
             sample_weight=sample_weight)
         return self

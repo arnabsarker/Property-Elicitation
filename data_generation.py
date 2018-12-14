@@ -119,10 +119,10 @@ def get_many_class_quantiles(projection_points, portions, k, alpha):
 ## By using the uniform distribution, we can generate uniform spacings on the unit interval
 ## (see di Finetti's theorem)
 def generate_simplex_data(k, n):
-    X = np.random.uniform(size=[n, k-1])
+    X = np.random.uniform(size=[n, k-1]) * 10
     X = np.sort(X)
     
-    classes = np.random.uniform(size=[n,1])
+    classes = np.random.uniform(size=[n,1]) * 10
     y = np.zeros_like(classes)
     for i in range(0, n):
         curr_vec = X[i,:]
