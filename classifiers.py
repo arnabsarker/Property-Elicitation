@@ -19,10 +19,6 @@ def sigmoid(t):
     out[~idx] = exp_t / (1. + exp_t)
     return out
 
-def hinge_derive(t):
-    out = -t * (t < 1)
-    return out
-
 
 def log_loss(Z):
     # stable computation of the logistic loss
@@ -33,10 +29,7 @@ def log_loss(Z):
     return out
 
 def hinge_loss(Z):
-    idx = Z > 0
-    out = np.zeros_like(Z)
-    out[idx] = np.maximum(1 - Z[idx], 0)
-    out[~idx] = np.maximum(1 - Z[~idx], 0)
+    out = np.maximum(1 - Z, 0)
     return out
 
 def obj_margin(x0, X, y, alpha, n_class, weights, L, kernel_type, loss_function, sample_weight):
@@ -44,7 +37,6 @@ def obj_margin(x0, X, y, alpha, n_class, weights, L, kernel_type, loss_function,
     Objective function for the general margin-based formulation
     """
 
-    print(x0)
     w = x0[:X.shape[1]]
     c = x0[X.shape[1]:]
     theta = L.dot(c)
@@ -118,6 +110,16 @@ def grad_direct(x0, X, y, alpha, gamma, n_class, weights, L, kernel_type, sample
     grad_theta = -Sigma.sum(1)
     grad_c = L.T.dot(grad_theta)
     return np.concatenate((grad_w, grad_c), axis=0)
+
+
+
+def hinge_derive(t):
+    idx = t > -1
+    out = np.zeros_like(t)
+    out[idx] = 1
+    out[~idx] = 0
+    return out
+
 
 def grad_margin(x0, X, y, alpha, n_class, weights, L, kernel_type, loss_function, sample_weight):
     """
@@ -200,7 +202,7 @@ def threshold_fit_quantile(X, y, alpha, gamma, n_class, kernel_type, loss_functi
 
     if (mode != 'Direct'): 
         sol = optimize.minimize(obj_margin, x0, method='L-BFGS-B',
-            bounds=bounds, options=options,
+            bounds=bounds, options=options, 
             args=(X, y, alpha, n_class, loss_fd, L, kernel_type, loss_function, sample_weight),
             tol=tol)
     else:
