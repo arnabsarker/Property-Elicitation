@@ -3,11 +3,17 @@ from scipy import optimize
 import scipy
 from sklearn import base, metrics
 from sklearn.utils.validation import check_X_y
+from sgd_optimize import *
 
 """
 This implements the margin-based ordinal regression methods described
 in http://arxiv.org/abs/1408.2327
 """
+
+def weighted_absolute_loss(u, y, alpha):
+    y = np.array(y.T[0]) ## y is given as a column matrix, but predictions are not
+    zs = np.zeros_like(y)
+    return np.mean((1 - alpha) * np.maximum((u - y), zs) + alpha * np.maximum((y - u), zs))
 
 def sigmoid(t):
     # sigmoid function, 1 / (1 + exp(-t))
@@ -145,7 +151,9 @@ def grad_margin(x0, X, y, alpha, n_class, weights, L, kernel_type, loss_function
     if(kernel_type == 'linear'):
         grad_w = X.T.dot(Sigma.sum(0)) + alpha * w
     else:
-        grad_w = X.T.dot(Sigma.sum(0)) + 0.5 * alpha * (np.matmul(X.T, w) + np.matmul(X, w))
+        ## Adjusted for batch SGD
+        grad_w = X.T.dot(Sigma.sum(0)) + alpha * w
+        #grad_w = X.T.dot(Sigma.sum(0)) + 0.5 * alpha * (np.matmul(X.T, w) + np.matmul(X, w))
 
     grad_theta = -Sigma.sum(1)
     grad_c = L.T.dot(grad_theta)
@@ -153,8 +161,8 @@ def grad_margin(x0, X, y, alpha, n_class, weights, L, kernel_type, loss_function
 
 
 def threshold_fit_quantile(X, y, alpha, gamma, n_class, kernel_type, loss_function,
-                           mode='QE', max_iter=1000, verbose=False, tol=1e-12,
-                           sample_weight=None):
+                           opt_type, opt_params, mode='QE', max_iter=1000, 
+                           verbose=False, tol=1e-12, sample_weight=None):
     """
     Solve the general threshold-based ordinal regression model
     using the logistic loss as surrogate of the 0-1 loss
@@ -200,11 +208,17 @@ def threshold_fit_quantile(X, y, alpha, gamma, n_class, kernel_type, loss_functi
     else:
         bounds = None
 
-    if (mode != 'Direct'): 
-        sol = optimize.minimize(obj_margin, x0, method='L-BFGS-B',
+    if (mode != 'Direct'):
+        if(opt_type == 'SciPy'):
+            sol = optimize.minimize(obj_margin, x0, method='L-BFGS-B',
             bounds=bounds, options=options, 
             args=(X, y, alpha, n_class, loss_fd, L, kernel_type, loss_function, sample_weight),
             tol=tol)
+            sol = sol.x
+        else: 
+            sol = optimize_batch(obj_function=obj_margin, x0=x0, method=opt_type, 
+                         bounds=bounds, gradient=grad_margin, opt_params=opt_params,
+                         args=(X, y, alpha, n_class, loss_fd, L, kernel_type, loss_function, sample_weight))
     else:
         sol = optimize.minimize(obj_direct, x0, method='L-BFGS-B',
             jac=grad_direct, bounds=bounds, options=options,
@@ -214,7 +228,7 @@ def threshold_fit_quantile(X, y, alpha, gamma, n_class, kernel_type, loss_functi
     if verbose and not sol.success:
         print(sol.message)
 
-    w, c = sol.x[:X.shape[1]], sol.x[X.shape[1]:]
+    w, c = sol[:X.shape[1]], sol[X.shape[1]:]
     theta = L.dot(c)
     return w, theta
 
@@ -250,13 +264,14 @@ def transform_kernel(X, train_set, kernel_type, kernel_param):
         K = X
     return K
 
-class LogisticQuantileIT(base.BaseEstimator):
+class QuantileIT(base.BaseEstimator):
     """
     Classifier that implements the ordinal logistic model for quantile estimation
 
     """
     def __init__(self, gamma=0.5, alpha=1., verbose=0, max_iter=1000, 
-                 kernel_type='linear', kernel_param=1, loss_function='logistic'):
+                 kernel_type='linear', kernel_param=1, loss_function='logistic',
+                 opt_type = 'SGD', opt_params={'learning_rate': 1}):
         self.gamma = gamma
         self.alpha = alpha
         self.verbose = verbose
@@ -264,6 +279,8 @@ class LogisticQuantileIT(base.BaseEstimator):
         self.kernel_type = kernel_type
         self.kernel_param = kernel_param
         self.loss_function = loss_function
+        self.opt_type = opt_type
+        self.opt_params = opt_params
 
     def fit(self, X, y, sample_weight=None):
         _y = np.array(y).astype(np.int)
@@ -279,7 +296,8 @@ class LogisticQuantileIT(base.BaseEstimator):
         y_tmp = y - y.min()  # we need classes that start at zero
         self.coef_, self.theta_ = threshold_fit_quantile(
             K, y_tmp, self.alpha, self.gamma, self.n_class_, self.kernel_type,
-            self.loss_function, mode='0-1', verbose=self.verbose, max_iter=self.max_iter,
+            self.loss_function, self.opt_type, self.opt_params,
+            mode='0-1', verbose=self.verbose, max_iter=self.max_iter,
             sample_weight=sample_weight)
         return self
 
@@ -303,13 +321,14 @@ class LogisticQuantileIT(base.BaseEstimator):
             y,
             sample_weight=sample_weight)
     
-class LogisticQuantileAT(base.BaseEstimator):
+class QuantileAT(base.BaseEstimator):
     """
     Classifier that implements the ordinal logistic model for quantile estimation
 
     """
     def __init__(self, gamma=0.5, alpha=1., verbose=0, max_iter=1000, 
-                 kernel_type='linear', kernel_param=1, loss_function='logistic'):
+                 kernel_type='linear', kernel_param=1, loss_function='logistic',
+                 opt_type = 'SGD', opt_params={'learning_rate': 1}):
         self.gamma = gamma
         self.alpha = alpha
         self.verbose = verbose
@@ -317,6 +336,8 @@ class LogisticQuantileAT(base.BaseEstimator):
         self.kernel_type = kernel_type
         self.kernel_param = kernel_param
         self.loss_function = loss_function
+        self.opt_type = opt_type
+        self.opt_params = opt_params
 
     def fit(self, X, y, sample_weight=None):
         _y = np.array(y).astype(np.int)
@@ -332,8 +353,8 @@ class LogisticQuantileAT(base.BaseEstimator):
         y_tmp = y - y.min()  # we need classes that start at zero
         self.coef_, self.theta_ = threshold_fit_quantile(
             K, y_tmp, self.alpha, self.gamma, self.n_class_, self.kernel_type,
-            self.loss_function, mode='AE', verbose=self.verbose, max_iter=self.max_iter,
-            sample_weight=sample_weight)
+            self.loss_function, self.opt_type, self.opt_params, mode='AE', 
+            verbose=self.verbose, max_iter=self.max_iter, sample_weight=sample_weight)
         return self
 
     def predict(self, X):
