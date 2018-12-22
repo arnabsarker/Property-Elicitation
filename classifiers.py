@@ -10,11 +10,6 @@ This implements the margin-based ordinal regression methods described
 in http://arxiv.org/abs/1408.2327
 """
 
-def weighted_absolute_loss(u, y, alpha):
-    y = np.array(y.T[0]) ## y is given as a column matrix, but predictions are not
-    zs = np.zeros_like(y)
-    return np.mean((1 - alpha) * np.maximum((u - y), zs) + alpha * np.maximum((y - u), zs))
-
 def sigmoid(t):
     # sigmoid function, 1 / (1 + exp(-t))
     # stable computation
