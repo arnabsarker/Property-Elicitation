@@ -6,6 +6,7 @@ def optimize_batch(obj_function=None, x0=None, method='SGD', gradient=None,
                    bounds=None, epsilon=1e-6, max_iters=10000, min_iters=500, batch_size=100, args=None, plot=True):
     x = x0
     best_x = x0
+    best_loss = 1e8
     
     num_iters = 0
     loss_difference = 1e8
@@ -37,18 +38,18 @@ def optimize_batch(obj_function=None, x0=None, method='SGD', gradient=None,
             x = x - eta * evaluate_gradient(gradient, batch_size, x, args)
         elif(method == 'Momentum'):
             grad = evaluate_gradient(gradient, batch_size, x, args)
-            eta = 1 / (1 + learning_rate * num_iters)
+            eta = learning_rate
             v = momentum_gamma * v + eta * grad
             x = x - v
         elif(method == 'Nesterov_Momentum'):
             weighted_v = momentum_gamma * v
             grad = evaluate_gradient(gradient, batch_size, x - weighted_v, args)
-            eta = 1 / (1 + learning_rate * num_iters)
+            eta = learning_rate
             v = weighted_v + eta * grad
             x = x - v
         elif(method == 'AMSGrad'):
             grad = evaluate_gradient(gradient, batch_size, x, args)
-            eta = 1 / (1 + learning_rate * num_iters)
+            eta = learning_rate
             m = beta1 * m + (1 - beta1) * grad
             v = beta2 * v + (1 - beta2) * (grad ** 2)
             v_hat = np.maximum(v_hat, v)
@@ -63,8 +64,9 @@ def optimize_batch(obj_function=None, x0=None, method='SGD', gradient=None,
         
         num_iters += 1
         
-        if(new_loss < old_loss):
+        if(new_loss < best_loss):
             best_x = x
+            best_loss = new_loss
     
     if(plot):
         plt.figure(0)

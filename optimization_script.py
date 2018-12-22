@@ -1,6 +1,7 @@
 from classifiers import *
 from data_generation import *
 import gc
+from timeit import default_timer as timer
 
 def run_scripts():
     k = 3
@@ -14,14 +15,15 @@ def run_scripts():
 
     loss_functions = ['hinge', 'logistic']
 
-    n_vals = [1000]
+    n_vals = [1000, 3000, 5000]
 
     params = {'SciPy': {}, 'Momentum': {'learning_rate': 1, 'momentum_gamma': 0.9},
+             'SGD': {'learning_rate': 1},
              'Nesterov_Momentum': {'learning_rate': 1, 'momentum_gamma': 0.9}, 
              'AMSGrad': {'learning_rate': 1, 'beta1': 0.9, 'beta2': 0.99}}
 
     opt_file = open('opt_results.csv', "w")
-    opt_file.write('Algorithm,Surrogate,Loss_Function,Kernel_Type,Kernel_Parameter,01_Loss,Weighted_Loss,Time\n')
+    opt_file.write('Algorithm,Surrogate,Loss_Function,Kernel_Type,Kernel_Parameter,01_Loss,Weighted_Loss,Time,n\n')
 
     for n in n_vals:
         X_train,y_train = generate_simplex_data(k,n)
@@ -50,7 +52,8 @@ def run_scripts():
                     abs_loss = weighted_absolute_loss(preds_5, y_test, a)
                     zo_loss = metrics.zero_one_loss(preds_5, y_quantiles)
 
-                    result_string = alg + ',' + 'IT' + ',' + loss_function + ',' + kernel + ',' + kernel_param + ',' + str(zo_loss) + ',' + str(abs_loss) + ',' + str(end - start)
+                    result_string = alg + ',' + 'IT' + ',' + loss_function + ',' + kernel + ',' + str(kernel_param) + ',' + str(zo_loss) + ',' + str(abs_loss) + ',' + str(end - start) + ',' + str(n)
+                    print(result_string)
                     opt_file.write(result_string + '\n')
 
                     opt_params['plot_file'] = 'imgs/' + alg + 'AT' + kernel + loss_function + str(n) + '.png'
@@ -65,12 +68,13 @@ def run_scripts():
                     abs_loss = weighted_absolute_loss(preds_6, y_test, a)
                     zo_loss = metrics.zero_one_loss(preds_6, y_quantiles)
 
-                    result_string = alg + ',' + 'AT' + ',' + loss_function + ',' + kernel + ',' + kernel_param + ',' + str(zo_loss) + ',' + str(abs_loss) + ',' + str(end - start)
+                    result_string = alg + ',' + 'AT' + ',' + loss_function + ',' + kernel + ',' + str(kernel_param) + ',' + str(zo_loss) + ',' + str(abs_loss) + ',' + str(end - start) + ',' + str(n)
+                    print(result_string)
                     opt_file.write(result_string + '\n')
 
                     gc.collect()
 
-    cv_results_file.close()
+    opt_file.close()
     return 1
 
 

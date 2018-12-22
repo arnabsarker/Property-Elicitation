@@ -138,6 +138,7 @@ def generate_simplex_data(k, n):
 
 ## Methods for simplex dataset
 def compute_alpha_quantile(X, alpha):
+    k = 3
     n = X.shape[0]
     y = np.zeros((n, 1))
     w_alpha = alpha * 10 ## Simplex weighted to be 10 x 10

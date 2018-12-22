@@ -60,7 +60,7 @@ def obj_margin(x0, X, y, alpha, n_class, weights, L, kernel_type, loss_function,
     if(kernel_type == 'linear'):
         obj += alpha * 0.5 * (np.dot(w, w))
     else:
-        obj += alpha * 0.5 * np.dot(np.matmul(w.T, X).T, w)
+        obj += alpha * 0.5 * (np.dot(w, w)) #np.dot(np.dot(w.T, X).T, w)
     
     return obj
 
