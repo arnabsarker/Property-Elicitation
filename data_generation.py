@@ -136,3 +136,25 @@ def generate_simplex_data(k, n):
             y[i,0] = np.argmax(curr_vec > classes[i,0])
         
     return X, y
+
+
+## Methods for simplex dataset
+def compute_alpha_quantile(X, alpha):
+    n = X.shape[0]
+    y = np.zeros((n, 1))
+    w_alpha = alpha * 10 ## Simplex weighted to be 10 x 10
+    for i in range(0, n):
+        curr_vec = X[i,:]
+        
+        if(w_alpha < curr_vec[0]):
+            y[i, 0] = 0
+        elif(w_alpha  > curr_vec[-1]):
+            y[i,0] = k - 1
+        else:
+            y[i,0] = np.argmax(curr_vec > w_alpha)
+    return y
+
+def weighted_absolute_loss(u, y, alpha):
+    y = np.array(y.T[0]) ## y is given as a column matrix, but predictions are not
+    zs = np.zeros_like(y)
+    return np.mean((1 - alpha) * np.maximum((u - y), zs) + alpha * np.maximum((y - u), zs))
