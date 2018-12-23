@@ -58,9 +58,9 @@ def obj_margin(x0, X, y, alpha, n_class, weights, L, kernel_type, loss_function,
     
     ## Regularization based on kernel 
     if(kernel_type == 'linear'):
-        obj += alpha * 0.5 * (np.dot(w, w))
+        obj += alpha * (0.5 / X.shape[1]) * (np.dot(w, w))
     else:
-        obj += alpha * 0.5 * (np.dot(w, w)) #np.dot(np.dot(w.T, X).T, w)
+        obj += alpha * (0.5 / X.shape[1]) * (np.dot(w, w)) #np.dot(np.dot(w.T, X).T, w)
     
     return obj
 
@@ -144,10 +144,10 @@ def grad_margin(x0, X, y, alpha, n_class, weights, L, kernel_type, loss_function
         Sigma *= sample_weight
 
     if(kernel_type == 'linear'):
-        grad_w = X.T.dot(Sigma.sum(0)) + alpha * w
+        grad_w = X.T.dot(Sigma.sum(0)) + (1.0 / X.shape[1]) * alpha * w
     else:
         ## Adjusted for batch SGD
-        grad_w = X.T.dot(Sigma.sum(0)) + alpha * w
+        grad_w = X.T.dot(Sigma.sum(0)) + (1.0 / X.shape[1]) * alpha * w
         #grad_w = X.T.dot(Sigma.sum(0)) + 0.5 * alpha * (np.matmul(X.T, w) + np.matmul(X, w))
 
     grad_theta = -Sigma.sum(1)
@@ -253,6 +253,7 @@ def threshold_proba(X, w, theta):
 def transform_kernel(X, train_set, kernel_type, kernel_param):
     if(kernel_type == 'poly'):
         K = metrics.pairwise.polynomial_kernel(X, train_set, degree=kernel_param)
+        K = 1000 * K / np.linalg.norm(K)
     elif(kernel_type == 'rbf'):
         K = metrics.pairwise.rbf_kernel(X, train_set, gamma=kernel_param)
     else:

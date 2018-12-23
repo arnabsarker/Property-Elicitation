@@ -2,11 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def optimize_batch(obj_function=None, x0=None, method='SGD', gradient=None, 
-                   opt_params={'learning_rate': 1, 'momentum_gamma': 0.9, 'beta1': 0.9, 'beta2': 0.99},
-                   bounds=None, epsilon=1e-6, max_iters=10000, min_iters=500, batch_size=100, args=None, plot=True):
+                   opt_params={'learning_rate': 1, 'momentum_gamma': 0.9, 'beta1': 0.9, 'beta2': 0.99, 'batch_size': 200},
+                   bounds=None, epsilon=1e-8, max_iters=10000, min_iters=500, args=None, plot=True):
     x = x0
     best_x = x0
     best_loss = 1e8
+    
+    batch_size = opt_params['batch_size']
     
     num_iters = 0
     loss_difference = 1e8
@@ -34,7 +36,7 @@ def optimize_batch(obj_function=None, x0=None, method='SGD', gradient=None,
         
         
         if(method == 'SGD'):
-            eta = 1 / (1 + learning_rate * num_iters)
+            eta = learning_rate
             x = x - eta * evaluate_gradient(gradient, batch_size, x, args)
         elif(method == 'Momentum'):
             grad = evaluate_gradient(gradient, batch_size, x, args)
@@ -71,7 +73,7 @@ def optimize_batch(obj_function=None, x0=None, method='SGD', gradient=None,
     if(plot):
         plt.figure(0)
         x_axis = range(300, num_iters)
-        y_axis = np.log(losses[300:])
+        y_axis = losses[300:]
         loss_plot = plt.plot(x_axis, y_axis)
         plt.savefig(opt_params['plot_file'])
         plt.close()
