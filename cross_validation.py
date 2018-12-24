@@ -8,7 +8,8 @@ import csv
 import gc
 from timeit import default_timer as timer
 
-def cross_validateATIT(kernel_params, reg_params, X_train, y_train, quantile, loss_function, kernel_type, opt_type, opt_params):
+def cross_validateATIT(kernels, kernel_params, reg_params, X_train, y_train, 
+                       quantile, loss_function, opt_type, opt_params):
     p = Pool()
     arg_list = []
     kf = KFold(n_splits=5)
@@ -18,12 +19,15 @@ def cross_validateATIT(kernel_params, reg_params, X_train, y_train, quantile, lo
         fold += 1
         curr_X_train, curr_X_test = X_train[train_index], X_train[test_index]
         curr_y_train, curr_y_test = y_train[train_index], y_train[test_index]
-        for kernel_param in kernel_params:
-            for reg_param in reg_params:
-                for surrogate in ['AT', 'IT']:
-                    all_args = (surrogate, fold, kernel_param, reg_param, curr_X_train, curr_y_train, 
-                                curr_X_test, curr_y_test, quantile, loss_function, kernel_type, opt_type, opt_params)
-                    arg_list.append(all_args)
+        for kernel_type in kernels:
+            curr_kernel_params = kernel_params[kernel_type]
+            curr_reg_params = reg_params[kernel_type]
+            for kernel_param in curr_kernel_params:
+                for reg_param in curr_reg_params:
+                    for surrogate in ['AT', 'IT']:
+                        all_args = (surrogate, fold, kernel_param, reg_param, curr_X_train, curr_y_train, 
+                                    curr_X_test, curr_y_test, quantile, loss_function, kernel_type, opt_type, opt_params)
+                        arg_list.append(all_args)
     
     with open('cross_val_results.csv', 'w') as f:
         f.write('Fold,Surrogate,Loss_Function,Kernel_Type,Kernel_Parameter,Reg_Paremeter,01_Loss,' + 
@@ -93,23 +97,9 @@ if __name__ == '__main__':
     
     opt_params = {'learning_rate': 0.0001, 'batch_size': 100}
     
-    kernel_params = [1]
-    reg_params = [0.1, 1, 10]
-    kernel_type = 'linear'
+    kernels = ['linear', 'poly', 'rbf']
+    kernel_params = {'linear': [1], 'poly': [2, 3, 4], 'rbf': [0.1, 1, 10]}
+    reg_params = {'linear': [0.1, 1, 10], 'poly': [1, 10, 100], 'rbf': [1, 10, 100]}
     
-    cross_validateATIT(kernel_params, reg_params, X_train, y_train, 
-                       quantile, loss_function, kernel_type, opt_type, opt_params)
-    
-    kernel_params = [2, 3, 4]
-    reg_params = [1, 10, 100]
-    kernel_type = 'poly'
-    
-    cross_validateATIT(kernel_params, reg_params, X_train, y_train, 
-                       quantile, loss_function, kernel_type, opt_type, opt_params)
-    
-    kernel_params = [0.1, 1, 10]
-    reg_params = [1, 10, 100]
-    kernel_type = 'rbf'
-    
-    cross_validateATIT(kernel_params, reg_params, X_train, y_train, 
+    cross_validateATIT(kernels, kernel_params, reg_params, X_train, y_train, 
                        quantile, loss_function, kernel_type, opt_type, opt_params)
