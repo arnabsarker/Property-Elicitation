@@ -102,4 +102,4 @@ if __name__ == '__main__':
     reg_params = {'linear': [0.1, 1, 10], 'poly': [1, 10, 100], 'rbf': [1, 10, 100]}
     
     cross_validateATIT(kernels, kernel_params, reg_params, X_train, y_train, 
-                       quantile, loss_function, kernel_type, opt_type, opt_params)
+                       quantile, loss_function, opt_type, opt_params)
