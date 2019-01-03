@@ -71,6 +71,7 @@ def optimize_batch(obj_function=None, x0=None, method='SGD', gradient=None,
             best_loss = new_loss
     
     if(plot):
+        print('Generating plot ' + opt_params['plot_file'])
         plt.figure(0)
         x_axis = range(300, num_iters)
         y_axis = losses[300:]
