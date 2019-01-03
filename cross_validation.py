@@ -1,7 +1,7 @@
 from sgd_optimize import *
 from classifiers import *
 from data_generation import *
-from multiprocessing import Pool
+from multiprocessing import Pool, Manager
 from sklearn.model_selection import KFold
 import sys
 import csv
@@ -35,19 +35,87 @@ def cross_validateATIT(kernels, kernel_params, reg_params, X_train, y_train,
         writer = csv.writer(f, lineterminator = '\n', delimiter=",")
         for result in p.imap_unordered(single_run_star, arg_list):
             writer.writerow(result)
+            
+def cross_validate_linear_reg(reg_params, X_train, y_train, quantiles, 
+                              loss_function, opt_type, opt_params, cv_file_name, cv_dir_names):
+    p = Pool()
+    manager = Manager()
+    arg_list = []
+    
+    kf = KFold(n_splits=5)
+    kf.get_n_splits(X_train)
+    
+    kernel_type = 'linear'
+    kernel_param = 1 ## Number is not relevant
+    
+    fold = 0
+    for train_index, test_index in kf.split(X_train):
+        fold += 1
+        curr_X_train, curr_X_test = X_train[train_index], X_train[test_index]
+        curr_y_train, curr_y_test = y_train[train_index], y_train[test_index]
+        for quantile in quantiles:
+            cv_dir_name = cv_dir_names[quantile]
+            for surrogate in ['AT', 'IT']:
+                for reg_param in reg_params:
+                    all_args = (surrogate, fold, kernel_param, reg_param, curr_X_train, curr_y_train, curr_X_test, 
+                                curr_y_test, quantile, loss_function, kernel_type, opt_type, opt_params, cv_dir_name)
+                    arg_list.append(all_args)
+    
+    ## Initialize results dictionary
+    all_results = {}
+    for quantile in quantiles:
+        AT_dict = {}
+        IT_dict = {}
+        for r in reg_params:
+            AT_dict[r] = 0
+            IT_dict[r] = 0
+        
+        all_results[quantile] = {'AT' : AT_dict, 'IT': IT_dict}
+        
+    with open(cv_file_name, 'w') as f:
+        f.write('Fold,Surrogate,Quantile,Loss_Function,Kernel_Type,Kernel_Parameter,Reg_Paremeter,01_Loss,' + 
+                'Weighted_Loss,inSample01,inSampleWeighted,Time\n')
+        writer = csv.writer(f, lineterminator = '\n', delimiter=",")
+        for result in p.imap_unordered(single_run_star, arg_list):
+            ## Hardcoding from single_run
+            reg_param = result[6]
+            zo_loss = float(result[7])
+            quantile = result[2]
+            
+            AT_dict = all_results[quantile]['AT']
+            IT_dict = all_results[quantile]['IT']
+            
+            if(result[1] == 'AT'):
+                AT_dict[reg_param] += zo_loss
+            elif(result[1] == 'IT'):
+                IT_dict[reg_param] += zo_loss
+            writer.writerow(result)
+     
+    
+    best_params = {}
+    for quantile in quantiles:
+        AT_dict = all_results[quantile]['AT']
+        IT_dict = all_results[quantile]['IT']
+        
+        AT_reg = min(AT_dict, key=AT_dict.get)
+        IT_reg = min(IT_dict, key=IT_dict.get)
+        
+        best_params[quantile] = {'AT': AT_reg, 'IT': IT_reg}
+        
+    return best_params
 
 def single_run_star(one_arg):
     return single_run(*one_arg)
     
 def single_run(surrogate, fold, kernel_param, reg_param, X_train, y_train, X_test, y_test,
-               quantile, loss_function, kernel_type, opt_type, opt_params):
+               quantile, loss_function, kernel_type, opt_type, opt_params, cv_dir_name):
     a = quantile
     y_quantiles = compute_alpha_quantile(X_test, a).astype(int)
     y_quantiles_in = compute_alpha_quantile(X_train, a).astype(int)
 
     if(surrogate == 'IT'):
         name = 'Fold' + str(fold) + opt_type + 'IT' + kernel_type + str(kernel_param) + loss_function + str(reg_param) + '.png'
-        opt_params['plot_file'] = 'cv_imgs/loss/' + name
+        opt_params['plot_file'] = cv_dir_name + '/loss/' + name
         start = timer()
         clf = QuantileIT(gamma=a, alpha=reg_param, kernel_type=kernel_type, opt_type=opt_type, opt_params=opt_params,
                               kernel_param=kernel_param, loss_function=loss_function)
@@ -57,7 +125,7 @@ def single_run(surrogate, fold, kernel_param, reg_param, X_train, y_train, X_tes
 
     elif(surrogate == 'AT'): 
         name = 'Fold' + str(fold) + opt_type + 'AT' + kernel_type + str(kernel_param) + loss_function + str(reg_param) + '.png'
-        opt_params['plot_file'] = 'cv_imgs/loss/' + name
+        opt_params['plot_file'] = cv_dir_name + '/loss/' + name
 
         start = timer()
         clf = QuantileAT(gamma=a, alpha=reg_param, kernel_type=kernel_type, opt_type=opt_type, opt_params=opt_params,
@@ -76,14 +144,15 @@ def single_run(surrogate, fold, kernel_param, reg_param, X_train, y_train, X_tes
     plt.figure(0)
     fig=plt.figure(figsize=(6,6))
     plt.scatter([X_test[:, 0]], [X_test[:, 1]], c=[preds])
-    plt.savefig('cv_imgs/boundaries/' + name)
+    plt.savefig(cv_dir_name + '/boundaries/' + name)
     plt.close()
 
     gc.collect()
-    return (fold, surrogate, loss_function, kernel_type, kernel_param, 
-            reg_param, str(zo_loss), str(abs_loss), str(zo_loss_in), str(abs_loss_in), str(end - start))
+    return (fold, surrogate, quantile, loss_function, kernel_type, kernel_param, 
+            reg_param, zo_loss, abs_loss, zo_loss_in, abs_loss_in, end - start)
     
-if __name__ == '__main__':
+if __name__ == '__main__':  
+    # Basic CV for simplex data
     n = int(sys.argv[1])
     
     X_train,y_train = generate_simplex_data(3,n)
