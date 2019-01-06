@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def optimize_batch(obj_function=None, x0=None, method='SGD', gradient=None, 
-                   opt_params={'learning_rate': 1, 'momentum_gamma': 0.9, 'beta1': 0.9, 'beta2': 0.99, 'batch_size': 200},
+                   opt_params={'learning_rate': 1e-8, 'momentum_gamma': 0.9, 'beta1': 0.9, 'beta2': 0.99, 'batch_size': 200},
                    bounds=None, epsilon=1e-8, max_iters=10000, min_iters=500, args=None, plot=True):
     x = x0
     best_x = x0
@@ -73,8 +73,8 @@ def optimize_batch(obj_function=None, x0=None, method='SGD', gradient=None,
     if(plot):
         print('Generating plot ' + opt_params['plot_file'])
         plt.figure(0)
-        x_axis = range(300, num_iters)
-        y_axis = losses[300:]
+        x_axis = range(0, num_iters)
+        y_axis = losses
         loss_plot = plt.plot(x_axis, y_axis)
         plt.savefig(opt_params['plot_file'])
         plt.close()

@@ -1,8 +1,19 @@
+from sgd_optimize import *
 from classifiers import *
-from data_generation import *
+from single_run import single_run_opt_star
+from data_generation import weighted_absolute_loss
+from multiprocessing import Pool, Manager
+import sys
+import csv
 import gc
+import os
 from timeit import default_timer as timer
-import matplotlib.pyplot as plt
+
+def get_features_and_labels(dataset, y_col):
+    y = dataset[:, y_col:y_col+1]
+    selector = [col for col in range(dataset.shape[1]) if col != y_col]
+    X = dataset[:, selector]
+    return X, y
 
 def run_scripts():
     k = 3
@@ -104,6 +115,88 @@ def run_ITAT(X_train, y_train, X_test, y_test, a, n, kernel, kernel_param, loss_
 
     gc.collect()
 
+def mnist_optimization():
+    train_path = 'datasets/mnist_train.csv'
+    test_path = 'datasets/mnist_test.csv'
+    y_col = 0
+    
+    ## Import data and get sets
+    print('Retrieving data as matrices')
+    train_set = np.genfromtxt(train_path, delimiter=',')
+    test_set = np.genfromtxt(test_path, delimiter=',')
+
+    X_train, y_train = get_features_and_labels(train_set, y_col)
+    X_test, y_test = get_features_and_labels(test_set, y_col)
+    
+    #Normalize Data
+    print('Normalizing data')
+    X_train, y_train = X_train - np.mean(X_train) , y_train
+    X_test, y_test = X_test - np.mean(X_test) , y_test
+    
+    y_train = y_train.astype(int)
+    y_test = y_test.astype(int)
+    
+    k = np.unique(y_train).size # Number of quantiles
+    
+    s = 4
+    
+    reg_param = 10
+    
+    loss_function = 'hinge'
+    
+    opt_types = ['SGD', 'Momentum', 'Nesterov_Momentum', 'AMSGrad']
+    
+    opt_params_dict = {'SGD': {'learning_rate': 1e-8, 'batch_size': 500},
+                      'Momentum': {'learning_rate': 1e-8, 'momentum_gamma': 0.9, 'batch_size': 500},
+                      'Nesterov_Momentum': {'learning_rate': 1e-8, 'momentum_gamma': 0.9, 'batch_size': 500},
+                      'AMSGrad': {'learning_rate': 1e-8, 'beta1': 0.9, 'beta2': 0.99, 'batch_size': 500}}
+    
+    opt_file_name = 'mnist_opt/results.csv'
+    
+    quantiles = []
+    opt_dir_names = {}
+    for i in range(1, s):
+        quantile = (1.0 * i) / s
+        
+        opt_dir_name = 'mnist_opt/results_i' + str(i) + 's' + str(s) + '_imgs'
+        opt_dir_names[quantile] = opt_dir_name
+        
+        if not os.path.exists(opt_dir_name):
+            os.makedirs(opt_dir_name + '/loss')
+        
+        quantiles.append(quantile)
+            
+        
+    optimization_linear_reg(reg_param, X_train, y_train, X_test, y_test, quantiles, 
+                            loss_function, opt_types, opt_params_dict, opt_file_name, opt_dir_names)
+
+def optimization_linear_reg(reg_param, X_train, y_train, X_test, y_test, quantiles, 
+                            loss_function, opt_types, opt_params_dict, opt_file_name, opt_dir_names):
+    p = Pool()
+    manager = Manager()
+    arg_list = []
+    
+    kernel_type = 'linear'
+    kernel_param = 1 ## Number is not relevant
+    
+    
+    for quantile in quantiles:
+        opt_dir_name = opt_dir_names[quantile]
+        for opt_type in opt_types:
+            opt_params = opt_params_dict[opt_type]
+            for surrogate in ['AT', 'IT']:
+                all_args = (surrogate, kernel_param, reg_param, X_train, y_train, X_test, y_test,
+                            quantile, loss_function, kernel_type, opt_type, opt_params, opt_dir_name)
+                arg_list.append(all_args)
+
+    with open(opt_file_name, 'w') as f:
+        f.write('Fold,Surrogate,Quantile,Loss_Function,Kernel_Type,Kernel_Parameter,Reg_Paremeter,01_Loss,' + 
+                'Weighted_Loss,inSample01,inSampleWeighted,Time\n')
+        writer = csv.writer(f, lineterminator = '\n', delimiter=",")
+        for result in p.imap_unordered(single_run_opt_star, arg_list):
+            writer.writerow(result)
+    
+
 if __name__ == '__main__':
-    run_scripts()
+    mnist_optimization()
         
