@@ -190,8 +190,8 @@ def optimization_linear_reg(reg_param, X_train, y_train, X_test, y_test, quantil
                 arg_list.append(all_args)
 
     with open(opt_file_name, 'w') as f:
-        f.write('Fold,Surrogate,Quantile,Loss_Function,Kernel_Type,Kernel_Parameter,Reg_Paremeter,01_Loss,' + 
-                'Weighted_Loss,inSample01,inSampleWeighted,Time\n')
+        f.write('Fold,Surrogate,Quantile,Loss_Function,Kernel_Type,Kernel_Parameter,Reg_Parameter,' + 
+                'Weighted_Loss,inSampleWeighted,Time\n')
         writer = csv.writer(f, lineterminator = '\n', delimiter=",")
         for result in p.imap_unordered(single_run_opt_star, arg_list):
             writer.writerow(result)
