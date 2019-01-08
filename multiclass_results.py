@@ -38,9 +38,9 @@ if __name__ == '__main__':
     
     loss_function = 'hinge'
     
-    opt_type = 'SGD'
+    opt_type = 'Momentum'
     
-    opt_params = {'learning_rate': 0.0001, 'batch_size': 100}
+    opt_params = {'learning_rate': 1e-8, 'batch_size': 500}
     
     cv_file_name = 'cv_mnist/results.csv'
     
@@ -68,6 +68,3 @@ if __name__ == '__main__':
         writer = csv.writer(csv_file)
         for key, value in best_parameters.items():
             writer.writerow([key, value])
-    
-    
-    
