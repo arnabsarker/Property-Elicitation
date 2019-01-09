@@ -4,6 +4,8 @@ import scipy
 from sklearn import base, metrics
 from sklearn.utils.validation import check_X_y
 from sgd_optimize import *
+from multiprocessing import Pool, Manager
+
 
 """
 This implements the margin-based ordinal regression methods described
@@ -260,6 +262,81 @@ def transform_kernel(X, train_set, kernel_type, kernel_param):
         K = X
     return K
 
+def quantile_fit_star(args):
+    return quantile_fit(*args)
+
+def quantile_fit(clf, X, y, quantile):
+    return (quantile, clf.fit(X, y))
+
+def mode(array):
+    most = max(list(map(array.count, array)))
+    return list(set(filter(lambda x: array.count(x) == most, array)))
+
+class QuantileMulticlass(base.BaseEstimator):
+    """
+    Classifier that implements the ordinal logistic model for quantile estimation
+
+    """
+    def __init__(self, surrogate='AT', gammas=[0.5], alphas=[10], verbose=0, max_iter=10000, 
+                 kernel_type='linear', kernel_param=1, loss_function='logistic',
+                 opt_type = 'SGD', opt_params={'learning_rate': 1e-8, 'batch_size': 500}):
+        self.surrogate = surrogate
+        self.gammas = gammas
+        self.alphas = alphas
+        self.verbose = verbose
+        self.max_iter = max_iter
+        self.kernel_type = kernel_type
+        self.kernel_param = kernel_param
+        self.loss_function = loss_function
+        self.opt_type = opt_type
+        self.opt_params = opt_params
+
+    def fit(self, X, y, sample_weight=None):
+        p = Pool()
+        manager = Manager()
+        classifiers = manager.dict()
+        
+        arg_list = []
+        for i, gamma in enumerate(self.gammas):
+            opt_params = self.opt_params.copy()
+            opt_params['plot_file'] = 'mnist_quantiles/' + self.opt_type + self.kernel_type + str(self.kernel_param) + self.surrogate + self.loss_function + '_i' + str(i + 1) + 's' + str(len(self.gammas) + 1) + '.png'
+            if(self.surrogate == 'AT'):
+                curr_classifier = QuantileAT(gamma=gamma, alpha=self.alphas[i], kernel_type=self.kernel_type, 
+                                         opt_type=self.opt_type, opt_params=opt_params,
+                                         kernel_param=self.kernel_param, loss_function=self.loss_function)
+            elif(self.surrogate == 'IT'):
+                curr_classifier = QuantileIT(gamma=gamma, alpha=self.alphas[i], kernel_type=self.kernel_type, 
+                                         opt_type=self.opt_type, opt_params=opt_params,
+                                         kernel_param=self.kernel_param, loss_function=self.loss_function)
+            curr_args = (curr_classifier, X, y, gamma)
+            arg_list.append(curr_args)
+            
+        for result in p.imap_unordered(quantile_fit_star, arg_list):
+            quantile = result[0]
+            clf = result[1]
+            classifiers[quantile] = clf
+        
+        self.classifiers = classifiers
+        return self
+
+    def predict(self, X):
+        n = X.shape[0]
+        s = len(self.gammas)
+        all_preds = np.zeros((n, s))
+        for i, gamma in enumerate(self.gammas):
+            all_preds[:, i] = self.classifiers[gamma].predict(X)
+            
+        preds = np.zeros((n, 1))
+        for i in range(1, n):
+            quantiles = all_preds[i, :]
+            preds[i, :] = np.random.choice(mode(quantiles.tolist()))
+        
+        return preds
+    
+    def predict_score(self, X):
+        
+        return []
+
 class QuantileIT(base.BaseEstimator):
     """
     Classifier that implements the ordinal logistic model for quantile estimation
@@ -267,7 +344,7 @@ class QuantileIT(base.BaseEstimator):
     """
     def __init__(self, gamma=0.5, alpha=1., verbose=0, max_iter=1000, 
                  kernel_type='linear', kernel_param=1, loss_function='logistic',
-                 opt_type = 'SGD', opt_params={'learning_rate': 1}):
+                 opt_type = 'SGD', opt_params={'learning_rate': 1e-8}):
         self.gamma = gamma
         self.alpha = alpha
         self.verbose = verbose
@@ -324,7 +401,7 @@ class QuantileAT(base.BaseEstimator):
     """
     def __init__(self, gamma=0.5, alpha=1., verbose=0, max_iter=1000, 
                  kernel_type='linear', kernel_param=1, loss_function='logistic',
-                 opt_type = 'SGD', opt_params={'learning_rate': 1}):
+                 opt_type = 'SGD', opt_params={'learning_rate': 1e-8}):
         self.gamma = gamma
         self.alpha = alpha
         self.verbose = verbose

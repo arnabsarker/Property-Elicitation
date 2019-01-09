@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 def optimize_batch(obj_function=None, x0=None, method='SGD', gradient=None, 
                    opt_params={'learning_rate': 1e-8, 'momentum_gamma': 0.9, 'beta1': 0.9, 'beta2': 0.99, 'batch_size': 200},
-                   bounds=None, epsilon=1e-8, max_iters=10000, min_iters=500, args=None, plot=True):
+                   bounds=None, epsilon=1e-8, max_iters=10000, min_iters=500, args=None):
     x = x0
     best_x = x0
     best_loss = 1e8
@@ -14,6 +14,7 @@ def optimize_batch(obj_function=None, x0=None, method='SGD', gradient=None,
     loss_difference = 1e8
     new_loss = 1e8
     
+    plot = 'plot_file' in opt_params
     if(plot):
         losses = []
     
