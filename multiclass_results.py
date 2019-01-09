@@ -48,7 +48,7 @@ if __name__ == '__main__':
     cv_file_names = {}
     cv_dir_names = {}
     for i in range(1, s):
-        quantile = i / s
+        quantile = i * 1.0 / s
         
         cv_dir_name = 'cv_mnist/cv_results_i' + str(i) + 's' + str(s) + '_imgs'
         cv_dir_names[quantile] = cv_dir_name
@@ -59,7 +59,7 @@ if __name__ == '__main__':
         
         quantiles.append(quantile)
             
-        
+    print(quantiles)    
     best_parameters = cross_validate_linear_reg(reg_params, X_train, y_train, quantiles, 
                               loss_function, opt_type, opt_params, cv_file_name, cv_dir_names)
     
