@@ -1,4 +1,4 @@
-from cross_validation import cross_validate_linear_reg
+from cross_validation import cross_validate_linear_reg, cross_validate_kernel_grid
 import numpy as np
 import os
 import csv
@@ -42,7 +42,7 @@ if __name__ == '__main__':
     
     opt_type = 'Momentum'
     
-    opt_params = {'learning_rate': 1e-8, 'batch_size': 500}
+    opt_params = {'learning_rate': 1e-8, 'momentum_gamma': 0.9, 'batch_size': 500}
     
     cv_file_name = 'cv_mnist_rbf/results.csv'
     
