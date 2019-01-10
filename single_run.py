@@ -51,8 +51,8 @@ def single_run_opt(surrogate, kernel_param, reg_param, X_train, y_train, X_test,
 def single_run(surrogate, fold, kernel_param, reg_param, X_train, y_train, X_test, y_test,
                quantile, loss_function, kernel_type, opt_type, opt_params, cv_dir_name):
     a = quantile
-    y_quantiles = compute_alpha_quantile(X_test, a).astype(int)
-    y_quantiles_in = compute_alpha_quantile(X_train, a).astype(int)
+    y_quantiles = y_test #compute_alpha_quantile(X_test, a).astype(int) only for synthetic data
+    y_quantiles_in = y_train #compute_alpha_quantile(X_train, a).astype(int)
 
     if(surrogate == 'IT'):
         name = 'Fold' + str(fold) + opt_type + 'IT' + kernel_type + str(kernel_param) + loss_function + str(reg_param) + '.png'

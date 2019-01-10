@@ -292,7 +292,6 @@ class QuantileMulticlass(base.BaseEstimator):
         self.opt_params = opt_params
 
     def fit(self, X, y, sample_weight=None):
-        p = Pool()
         manager = Manager()
         classifiers = manager.dict()
         
@@ -310,11 +309,11 @@ class QuantileMulticlass(base.BaseEstimator):
                                          kernel_param=self.kernel_param, loss_function=self.loss_function)
             curr_args = (curr_classifier, X, y, gamma)
             arg_list.append(curr_args)
-            
-        for result in p.imap_unordered(quantile_fit_star, arg_list):
-            quantile = result[0]
-            clf = result[1]
-            classifiers[quantile] = clf
+        with Pool() as p:    
+            for result in p.imap_unordered(quantile_fit_star, arg_list):
+                quantile = result[0]
+                clf = result[1]
+                classifiers[quantile] = clfs
         
         self.classifiers = classifiers
         return self

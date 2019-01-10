@@ -30,11 +30,13 @@ if __name__ == '__main__':
     y_train = y_train.astype(int)
     y_test = y_test.astype(int)
     
-    k = np.unique(y_train).size # Number of quantiles
+    k = np.unique(y_train).size # Number of classes
     
     s = 6
     
+    kernel_type = 'rbf'
     reg_params = [1, 10, 100, 1000]
+    kernel_params = [0.1, 1, 10, 100]
     
     loss_function = 'hinge'
     
@@ -42,7 +44,7 @@ if __name__ == '__main__':
     
     opt_params = {'learning_rate': 1e-8, 'batch_size': 500}
     
-    cv_file_name = 'cv_mnist/results.csv'
+    cv_file_name = 'cv_mnist_rbf/results.csv'
     
     quantiles = []
     cv_file_names = {}
@@ -50,7 +52,7 @@ if __name__ == '__main__':
     for i in range(1, s):
         quantile = i * 1.0 / s
         
-        cv_dir_name = 'cv_mnist/cv_results_i' + str(i) + 's' + str(s) + '_imgs'
+        cv_dir_name = 'cv_mnist_rbf/cv_results_i' + str(i) + 's' + str(s) + '_imgs'
         cv_dir_names[quantile] = cv_dir_name
         
         if not os.path.exists(cv_dir_name):
@@ -60,11 +62,11 @@ if __name__ == '__main__':
         quantiles.append(quantile)
             
     print(quantiles)    
-    best_parameters = cross_validate_linear_reg(reg_params, X_train, y_train, quantiles, 
+    best_parameters = cross_validate_kernel_grid(kernel_type, kernel_params, reg_params, X_train, y_train, quantiles, 
                               loss_function, opt_type, opt_params, cv_file_name, cv_dir_names)
     
     print(best_parameters)
-    with open('dict.csv', 'w') as csv_file:
+    with open('rbf_dict.csv', 'w') as csv_file:
         writer = csv.writer(csv_file)
         for key, value in best_parameters.items():
             writer.writerow([key, value])
