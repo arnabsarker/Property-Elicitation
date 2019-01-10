@@ -154,6 +154,12 @@ def compute_alpha_quantile(X, alpha):
     return y
 
 def weighted_absolute_loss(u, y, alpha):
-    y = np.array(y.T[0]) ## y is given as a column matrix, but predictions are not
+    y = np.reshape(y, (1, np.size(y)))
+    u = np.reshape(u, (1, np.size(y))) 
     zs = np.zeros_like(y)
     return np.mean((1 - alpha) * np.maximum((u - y), zs) + alpha * np.maximum((y - u), zs))
+
+def zo_loss(u, y):
+    y = np.reshape(y, (1, np.size(y)))
+    u = np.reshape(u, (1, np.size(y)))
+    return np.mean(1 * np.not_equal(u, y))

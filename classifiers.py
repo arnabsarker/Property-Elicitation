@@ -292,6 +292,12 @@ class QuantileMulticlass(base.BaseEstimator):
         self.opt_params = opt_params
 
     def fit(self, X, y, sample_weight=None):
+        _y = np.array(y).astype(np.int)
+        if np.abs(_y - y).sum() > 0.1:
+            raise ValueError('y must only contain integer values')
+        self.classes_ = np.unique(y)
+        self.n_class_ = self.classes_.max() - self.classes_.min() + 1
+        
         manager = Manager()
         classifiers = manager.dict()
         
@@ -313,7 +319,7 @@ class QuantileMulticlass(base.BaseEstimator):
             for result in p.imap_unordered(quantile_fit_star, arg_list):
                 quantile = result[0]
                 clf = result[1]
-                classifiers[quantile] = clfs
+                classifiers[quantile] = clf
         
         self.classifiers = classifiers
         return self
@@ -333,8 +339,20 @@ class QuantileMulticlass(base.BaseEstimator):
         return preds
     
     def predict_score(self, X):
+        n = X.shape[0]
+        k = self.n_class_
+        all_scores = np.zeros((n, k))
         
-        return []
+        for i, gamma in enumerate(self.gammas):
+            all_scores = all_scores + self.classifiers[gamma].predict_proba(X)
+        
+        
+        preds = np.zeros((n, 1))
+        for i in range(1, n):
+            curr_scores = all_scores[i, :]
+            preds[i, :] = np.argmax(curr_scores)
+        
+        return preds
 
 class QuantileIT(base.BaseEstimator):
     """
