@@ -279,7 +279,7 @@ class QuantileMulticlass(base.BaseEstimator):
     """
     def __init__(self, surrogate='AT', gammas=[0.5], alphas=[10], verbose=0, max_iter=10000, 
                  kernel_type='linear', kernel_param=1, loss_function='logistic',
-                 opt_type = 'SGD', opt_params={'learning_rate': 1e-8, 'batch_size': 500}):
+                 opt_type='SGD', opt_params={}):
         self.surrogate = surrogate
         self.gammas = gammas
         self.alphas = alphas
@@ -305,6 +305,7 @@ class QuantileMulticlass(base.BaseEstimator):
         for i, gamma in enumerate(self.gammas):
             opt_params = self.opt_params.copy()
             opt_params['plot_file'] = 'mnist_quantiles/' + self.opt_type + self.kernel_type + str(self.kernel_param) + self.surrogate + self.loss_function + '_i' + str(i + 1) + 's' + str(len(self.gammas) + 1) + '.png'
+            print(opt_params)
             if(self.surrogate == 'AT'):
                 curr_classifier = QuantileAT(gamma=gamma, alpha=self.alphas[i], kernel_type=self.kernel_type, 
                                          opt_type=self.opt_type, opt_params=opt_params,
@@ -315,12 +316,13 @@ class QuantileMulticlass(base.BaseEstimator):
                                          kernel_param=self.kernel_param, loss_function=self.loss_function)
             curr_args = (curr_classifier, X, y, gamma)
             arg_list.append(curr_args)
-        with Pool() as p:    
-            for result in p.imap_unordered(quantile_fit_star, arg_list):
-                quantile = result[0]
-                clf = result[1]
-                classifiers[quantile] = clf
+        p = Pool()    
+        for result in p.imap_unordered(quantile_fit_star, arg_list):
+            quantile = result[0]
+            clf = result[1]
+            classifiers[quantile] = clf
         
+        p.close()
         self.classifiers = classifiers
         return self
 

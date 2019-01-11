@@ -114,8 +114,6 @@ def cross_validate_kernel_grid(kernel_type, kernel_params, reg_params, X_train, 
     kf = KFold(n_splits=5)
     kf.get_n_splits(X_train)
     
-    kernel_param = 1 ## Number is not relevant
-    
     fold = 0
     for train_index, test_index in kf.split(X_train):
         fold += 1
@@ -142,6 +140,7 @@ def cross_validate_kernel_grid(kernel_type, kernel_params, reg_params, X_train, 
         
         all_results[quantile] = {'AT' : AT_dict, 'IT': IT_dict}
         
+    print(all_results)
     with open(cv_file_name, 'w') as f:
         f.write('Fold,Surrogate,Quantile,Loss_Function,Kernel_Type,Kernel_Parameter,Reg_Paremeter,01_Loss,' + 
                 'Weighted_Loss,inSample01,inSampleWeighted,Time\n')
@@ -150,7 +149,7 @@ def cross_validate_kernel_grid(kernel_type, kernel_params, reg_params, X_train, 
             ## Hardcoding from single_run
             kernel_param = result[5]
             reg_param = result[6]
-            dict_string = reg_param + '_' + kernel_param
+            dict_string = str(reg_param) + '_' + str(kernel_param)
             
             abs_loss = float(result[8])
             quantile = result[2]
@@ -164,7 +163,6 @@ def cross_validate_kernel_grid(kernel_type, kernel_params, reg_params, X_train, 
                 IT_dict[dict_string] += abs_loss
             writer.writerow(result)
      
-    
     best_params = {}
     for quantile in quantiles:
         AT_dict = all_results[quantile]['AT']
@@ -175,4 +173,5 @@ def cross_validate_kernel_grid(kernel_type, kernel_params, reg_params, X_train, 
         
         best_params[quantile] = {'AT': AT_reg, 'IT': IT_reg}
         
+    p.close()
     return best_params
