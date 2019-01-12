@@ -89,9 +89,7 @@ def single_run(surrogate, fold, kernel_param, reg_param, X_train, y_train, X_tes
     plt.savefig(cv_dir_name + '/boundaries/' + name)
     plt.close()
     '''
-    print('Abs loss')
     print(abs_loss)
-    print('One run done')
     gc.collect()
     return (fold, surrogate, quantile, loss_function, kernel_type, kernel_param, 
             reg_param, zo_loss, abs_loss, zo_loss_in, abs_loss_in, end - start)

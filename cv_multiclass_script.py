@@ -35,8 +35,8 @@ if __name__ == '__main__':
     s = 6
     
     kernel_type = 'rbf'
-    reg_params = [1, 1000]
-    kernel_params = [1, 1000]
+    reg_params = [10, 100, 1000]
+    kernel_params = [1, 10, 100, 1000]
     
     loss_function = 'hinge'
     
@@ -44,7 +44,7 @@ if __name__ == '__main__':
     
     opt_params = {'learning_rate': 5e-7, 'momentum_gamma': 0.9, 'batch_size': 100}
     
-    cv_file_name = 'cv_mnist_rbf2/results.csv'
+    cv_file_name = 'cv_mnist_rbf/results.csv'
     
     quantiles = []
     cv_file_names = {}
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     for i in range(1, s):
         quantile = i * 1.0 / s
         
-        cv_dir_name = 'cv_mnist_rbf2/cv_results_i' + str(i) + 's' + str(s) + '_imgs'
+        cv_dir_name = 'cv_mnist_rbf/cv_results_i' + str(i) + 's' + str(s) + '_imgs'
         cv_dir_names[quantile] = cv_dir_name
         
         if not os.path.exists(cv_dir_name):
