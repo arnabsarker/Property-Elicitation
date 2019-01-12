@@ -278,7 +278,7 @@ class QuantileMulticlass(base.BaseEstimator):
 
     """
     def __init__(self, surrogate='AT', gammas=[0.5], alphas=[10], verbose=0, max_iter=10000, 
-                 kernel_type='linear', kernel_param=1, loss_function='logistic',
+                 kernel_type='linear', kernel_params=[1], loss_function='logistic',
                  opt_type='SGD', opt_params={}):
         self.surrogate = surrogate
         self.gammas = gammas
@@ -286,7 +286,7 @@ class QuantileMulticlass(base.BaseEstimator):
         self.verbose = verbose
         self.max_iter = max_iter
         self.kernel_type = kernel_type
-        self.kernel_param = kernel_param
+        self.kernel_params = kernel_params
         self.loss_function = loss_function
         self.opt_type = opt_type
         self.opt_params = opt_params
@@ -309,11 +309,11 @@ class QuantileMulticlass(base.BaseEstimator):
             if(self.surrogate == 'AT'):
                 curr_classifier = QuantileAT(gamma=gamma, alpha=self.alphas[i], kernel_type=self.kernel_type, 
                                          opt_type=self.opt_type, opt_params=opt_params,
-                                         kernel_param=self.kernel_param, loss_function=self.loss_function)
+                                         kernel_param=self.kernel_params[i], loss_function=self.loss_function)
             elif(self.surrogate == 'IT'):
                 curr_classifier = QuantileIT(gamma=gamma, alpha=self.alphas[i], kernel_type=self.kernel_type, 
                                          opt_type=self.opt_type, opt_params=opt_params,
-                                         kernel_param=self.kernel_param, loss_function=self.loss_function)
+                                         kernel_param=self.kernel_params[i], loss_function=self.loss_function)
             curr_args = (curr_classifier, X, y, gamma)
             arg_list.append(curr_args)
         p = Pool()    
