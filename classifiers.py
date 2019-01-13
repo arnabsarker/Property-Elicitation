@@ -60,9 +60,9 @@ def obj_margin(x0, X, y, alpha, n_class, weights, L, kernel_type, loss_function,
     
     ## Regularization based on kernel 
     if(kernel_type == 'linear'):
-        obj += alpha * (0.5 / X.shape[1]) * (np.dot(w, w))
+        obj += 0.5 * alpha * (np.dot(w, w))
     else:
-        obj += alpha * (0.5 / X.shape[1]) * (np.dot(w, w)) #np.dot(np.dot(w.T, X).T, w)
+        obj += 0.5 * alpha * (np.dot(w, w)) #np.dot(np.dot(w.T, X).T, w)
     
     return obj
 
@@ -146,10 +146,10 @@ def grad_margin(x0, X, y, alpha, n_class, weights, L, kernel_type, loss_function
         Sigma *= sample_weight
 
     if(kernel_type == 'linear'):
-        grad_w = X.T.dot(Sigma.sum(0)) + (1.0 / X.shape[1]) * alpha * w
+        grad_w = X.T.dot(Sigma.sum(0)) + alpha * w
     else:
         ## Adjusted for batch SGD
-        grad_w = X.T.dot(Sigma.sum(0)) + (1.0 / X.shape[1]) * alpha * w
+        grad_w = X.T.dot(Sigma.sum(0)) + alpha * w
         #grad_w = X.T.dot(Sigma.sum(0)) + 0.5 * alpha * (np.matmul(X.T, w) + np.matmul(X, w))
 
     grad_theta = -Sigma.sum(1)
@@ -252,15 +252,14 @@ def threshold_proba(X, w, theta):
         constant_values=(0, 1))
     return np.diff(prob)
 
-def transform_kernel(X, train_set, kernel_type, kernel_param):
+def transform_kernel(X, train_set, kernel_type, kernel_param, scale=1):
     if(kernel_type == 'poly'):
         K = metrics.pairwise.polynomial_kernel(X, train_set, degree=kernel_param)
-        K = 1000 * K / np.linalg.norm(K)
     elif(kernel_type == 'rbf'):
         K = metrics.pairwise.rbf_kernel(X, train_set, gamma=kernel_param)
     else:
         K = X
-    return K
+    return K * scale
 
 def quantile_fit_star(args):
     return quantile_fit(*args)
@@ -278,7 +277,7 @@ class QuantileMulticlass(base.BaseEstimator):
 
     """
     def __init__(self, surrogate='AT', gammas=[0.5], alphas=[10], verbose=0, max_iter=10000, 
-                 kernel_type='linear', kernel_param=1, loss_function='logistic',
+                 kernel_type='linear', kernel_params=[1], loss_function='logistic',
                  opt_type='SGD', opt_params={}):
         self.surrogate = surrogate
         self.gammas = gammas
@@ -286,7 +285,7 @@ class QuantileMulticlass(base.BaseEstimator):
         self.verbose = verbose
         self.max_iter = max_iter
         self.kernel_type = kernel_type
-        self.kernel_param = kernel_param
+        self.kernel_params = kernel_params
         self.loss_function = loss_function
         self.opt_type = opt_type
         self.opt_params = opt_params
@@ -304,16 +303,17 @@ class QuantileMulticlass(base.BaseEstimator):
         arg_list = []
         for i, gamma in enumerate(self.gammas):
             opt_params = self.opt_params.copy()
-            opt_params['plot_file'] = 'mnist_quantiles/' + self.opt_type + self.kernel_type + str(self.kernel_param) + self.surrogate + self.loss_function + '_i' + str(i + 1) + 's' + str(len(self.gammas) + 1) + '.png'
+            s = len(self.gammas) + 1
+            opt_params['plot_file'] = 'mnist_quantiles/' + self.opt_type + self.kernel_type + str(self.kernel_params[i]) + self.surrogate + self.loss_function + str(self.alphas[i]) + '_i' + str(int(round(gamma * s))) + 's' + str(s) + '.png'
             print(opt_params)
             if(self.surrogate == 'AT'):
                 curr_classifier = QuantileAT(gamma=gamma, alpha=self.alphas[i], kernel_type=self.kernel_type, 
                                          opt_type=self.opt_type, opt_params=opt_params,
-                                         kernel_param=self.kernel_param, loss_function=self.loss_function)
+                                         kernel_param=self.kernel_params[i], loss_function=self.loss_function)
             elif(self.surrogate == 'IT'):
                 curr_classifier = QuantileIT(gamma=gamma, alpha=self.alphas[i], kernel_type=self.kernel_type, 
                                          opt_type=self.opt_type, opt_params=opt_params,
-                                         kernel_param=self.kernel_param, loss_function=self.loss_function)
+                                         kernel_param=self.kernel_params[i], loss_function=self.loss_function)
             curr_args = (curr_classifier, X, y, gamma)
             arg_list.append(curr_args)
         p = Pool()    
@@ -373,6 +373,7 @@ class QuantileIT(base.BaseEstimator):
         self.loss_function = loss_function
         self.opt_type = opt_type
         self.opt_params = opt_params
+        self.scale = 1
 
     def fit(self, X, y, sample_weight=None):
         _y = np.array(y).astype(np.int)
@@ -384,7 +385,9 @@ class QuantileIT(base.BaseEstimator):
         # Handle Kernel
         self.train_set = X
         K = transform_kernel(X, X, self.kernel_type, self.kernel_param)
-        
+        self.scale = 1.0 #/ np.linalg.norm(K, ord=np.inf)
+        K = K * self.scale
+
         y_tmp = y - y.min()  # we need classes that start at zero
         self.coef_, self.theta_ = threshold_fit_quantile(
             K, y_tmp, self.alpha, self.gamma, self.n_class_, self.kernel_type,
@@ -394,19 +397,16 @@ class QuantileIT(base.BaseEstimator):
         return self
 
     def predict(self, X):
-        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param)
-        
+        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param, scale=self.scale)
         return threshold_predict(K, self.coef_, self.theta_) +\
          self.classes_.min()
 
     def predict_proba(self, X):
-        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param)
-        
+        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param, scale=self.scale)
         return threshold_proba(K, self.coef_, self.theta_)
 
     def score(self, X, y, sample_weight=None):
-        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param)
-        
+        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param, scale=self.scale)
         pred = self.predict(K)
         return metrics.accuracy_score(
             pred,
@@ -430,6 +430,7 @@ class QuantileAT(base.BaseEstimator):
         self.loss_function = loss_function
         self.opt_type = opt_type
         self.opt_params = opt_params
+        self.scale = 1
 
     def fit(self, X, y, sample_weight=None):
         _y = np.array(y).astype(np.int)
@@ -441,7 +442,9 @@ class QuantileAT(base.BaseEstimator):
         # Handle Kernel
         self.train_set = X
         K = transform_kernel(X, X, self.kernel_type, self.kernel_param)
-        
+        self.scale = 1.0 #/ np.linalg.norm(K, ord=np.inf)
+        K = K * self.scale
+
         y_tmp = y - y.min()  # we need classes that start at zero
         self.coef_, self.theta_ = threshold_fit_quantile(
             K, y_tmp, self.alpha, self.gamma, self.n_class_, self.kernel_type,
@@ -450,16 +453,16 @@ class QuantileAT(base.BaseEstimator):
         return self
 
     def predict(self, X):
-        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param)
+        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param, scale=self.scale)
         return threshold_predict(K, self.coef_, self.theta_) +\
          self.classes_.min()
 
     def predict_proba(self, X):
-        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param)
+        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param, scale=self.scale)
         return threshold_proba(K, self.coef_, self.theta_)
 
     def score(self, X, y, sample_weight=None):
-        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param)
+        K = transform_kernel(X, self.train_set, self.kernel_type, self.kernel_param, scale=self.scale)
         pred = self.predict(K)
         return metrics.accuracy_score(
             pred,

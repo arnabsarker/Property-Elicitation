@@ -1,13 +1,7 @@
-from cross_validation import cross_validate_linear_reg, cross_validate_kernel_grid
+from cross_validation import cross_validate_kernel_grid
 import numpy as np
 import os
 import csv
-
-def get_features_and_labels(dataset, y_col):
-    y = dataset[:, y_col:y_col+1]
-    selector = [col for col in range(dataset.shape[1]) if col != y_col]
-    X = dataset[:, selector]
-    return X, y
 
 if __name__ == '__main__':
     train_path = 'datasets/mnist_train5000.csv'
@@ -44,25 +38,18 @@ if __name__ == '__main__':
     
     opt_params = {'learning_rate': 5e-7, 'momentum_gamma': 0.9, 'batch_size': 100}
     
-    cv_file_name = 'cv_mnist_rbf/results.csv'
+    cv_dir_name_base = 'cv_mnist_rbf2'
     
     quantiles = []
     cv_file_names = {}
     cv_dir_names = {}
     for i in range(1, s):
         quantile = i * 1.0 / s
-        
-        cv_dir_name = 'cv_mnist_rbf/cv_results_i' + str(i) + 's' + str(s) + '_imgs'
-        cv_dir_names[quantile] = cv_dir_name
-        
-        if not os.path.exists(cv_dir_name):
-            os.makedirs(cv_dir_name + '/loss')
-        
         quantiles.append(quantile)
             
     print(quantiles)    
     best_parameters = cross_validate_kernel_grid(kernel_type, kernel_params, reg_params, X_train, y_train, quantiles, 
-                              loss_function, opt_type, opt_params, cv_file_name, cv_dir_names)
+                              loss_function, opt_type, opt_params, cv_dir_name_base)
     
     print(best_parameters)
     with open('rbf_dict.csv', 'w') as csv_file:

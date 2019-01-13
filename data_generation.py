@@ -163,3 +163,10 @@ def zo_loss(u, y):
     y = np.reshape(y, (1, np.size(y)))
     u = np.reshape(u, (1, np.size(y)))
     return np.mean(1 * np.not_equal(u, y))
+
+
+def get_features_and_labels(dataset, y_col):
+    y = dataset[:, y_col:y_col+1]
+    selector = [col for col in range(dataset.shape[1]) if col != y_col]
+    X = dataset[:, selector]
+    return X, y
