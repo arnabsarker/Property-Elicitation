@@ -8,9 +8,13 @@ import sys
 import csv
 import gc
 from timeit import default_timer as timer
+import data_storage
 
 def single_run_star(one_arg):
     return single_run(*one_arg)
+
+def single_run_large_star(one_arg):
+    return single_run_large(*one_arg)
 
 def single_run_opt_star(one_arg):
     return single_run_opt(*one_arg)
@@ -50,6 +54,50 @@ def single_run_opt(surrogate, kernel_param, reg_param, X_train, y_train, X_test,
 
 def single_run(surrogate, fold, kernel_param, reg_param, X_train, y_train, X_test, y_test, classes,
                quantile, loss_function, kernel_type, opt_type, opt_params, cv_dir_name):
+    a = quantile
+    y_quantiles = y_test #compute_alpha_quantile(X_test, a).astype(int) only for synthetic data
+    y_quantiles_in = y_train #compute_alpha_quantile(X_train, a).astype(int)
+
+    if(surrogate == 'IT'):
+        name = 'Fold' + str(fold) + opt_type + 'IT' + kernel_type + str(kernel_param) + loss_function + str(reg_param) + '.png'
+        opt_params['plot_file'] = cv_dir_name + '/loss/' + name
+        start = timer()
+        clf = QuantileIT(gamma=a, alpha=reg_param, kernel_type=kernel_type, opt_type=opt_type, opt_params=opt_params,
+                              kernel_param=kernel_param, loss_function=loss_function, classes_=classes)
+        clf.fit(X_train, y_train)
+        preds = clf.predict(X_test)
+        end = timer()
+
+    elif(surrogate == 'AT'): 
+        name = 'Fold' + str(fold) + opt_type + 'AT' + kernel_type + str(kernel_param) + loss_function + str(reg_param) + '.png'
+        opt_params['plot_file'] = cv_dir_name + '/loss/' + name
+
+        start = timer()
+        clf = QuantileAT(gamma=a, alpha=reg_param, kernel_type=kernel_type, opt_type=opt_type, opt_params=opt_params,
+                              kernel_param=kernel_param, loss_function=loss_function, classes_=classes)
+        clf.fit(X_train, y_train)
+        preds = clf.predict(X_test)
+        end = timer()
+
+    abs_loss = weighted_absolute_loss(preds, y_test, a)
+    zo_loss = metrics.zero_one_loss(preds, y_quantiles)
+    preds_in = clf.predict(X_train)
+    abs_loss_in = weighted_absolute_loss(preds_in, y_train, a)
+    zo_loss_in = metrics.zero_one_loss(preds_in, y_quantiles_in)
+
+    print(abs_loss)
+    gc.collect()
+    return (fold, surrogate, quantile, loss_function, kernel_type, kernel_param, 
+            reg_param, zo_loss, abs_loss, zo_loss_in, abs_loss_in, end - start)
+
+def single_run_large(surrogate, fold, fold_dict, kernel_param, reg_param, classes,
+               quantile, loss_function, kernel_type, opt_type, opt_params, cv_dir_name):
+    
+    X_test = data_storage.X_train[fold_dict[fold]['test_index']]
+    y_test = data_storage.y_train[fold_dict[fold]['test_index']]
+    
+    X_train = data_storage.X_train[fold_dict[fold]['train_index']]
+    y_train = data_storage.y_train[fold_dict[fold]['train_index']]
     a = quantile
     y_quantiles = y_test #compute_alpha_quantile(X_test, a).astype(int) only for synthetic data
     y_quantiles_in = y_train #compute_alpha_quantile(X_train, a).astype(int)
