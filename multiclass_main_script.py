@@ -47,7 +47,6 @@ if __name__ == '__main__':
     y_train = np.array(y_train).astype(int)
     y_test = np.array(y_test).astype(int)
 
-    '''
     surrogate = 'AT'
     
     num_quantiles = int(round(5 * np.log10(k)))
@@ -98,7 +97,6 @@ if __name__ == '__main__':
     log(zo_loss(preds_score, y_test))
     log('0-1 loss of vote-based predictions')
     log(zo_loss(preds_vote, y_test))
-    '''
     
     K_train = metrics.pairwise.rbf_kernel(X_train, X_train, gamma=gammas[len(gammas) / 2])
     K_test = metrics.pairwise.rbf_kernel(X_test, X_train, gamma=gammas[len(gammas) / 2])
