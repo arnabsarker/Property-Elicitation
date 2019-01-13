@@ -38,7 +38,7 @@ def get_class_labels(projection_points, portions, k):
             y[i] = likely_class + 1 * (np.random.uniform(0,1) < prob_up)
     return y
 
-def generate_linear_complex_data(d, k, n, portions):
+def generate_linear_complex_data(d, k, n, portions, alpha):
     ## Vector that classification will be based on
     w = np.array([1/d]*d)
     scaling = portions[-1]
@@ -53,15 +53,15 @@ def generate_linear_complex_data(d, k, n, portions):
     X = points_on_line + noise
 
     ## Get class labels
-    y = get_many_class_labels(projection_points, portions, k)
+    y = get_many_class_labels(projection_points, portions, k, alpha)
     
     return X,y
 
-def get_many_class_labels(projection_points, portions, k):
+def get_many_class_labels(projection_points, portions, k, alpha):
     y = np.matrix(np.zeros(projection_points.size)).T
     for i in range(0, projection_points.size):
         curr_point = projection_points[i]
-        probs = 1 / np.power(np.abs(portions - curr_point), 2)
+        probs = 1 / np.power(np.abs(portions - curr_point), alpha)
         probs = np.asarray(probs / np.sum(probs))
         y[i] = np.random.choice(k, p=probs[0])
     return y

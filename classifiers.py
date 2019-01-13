@@ -172,11 +172,12 @@ def threshold_fit_quantile(X, y, alpha, gamma, n_class, kernel_type, loss_functi
 
     X, y = check_X_y(X, y, accept_sparse='csr')
     unique_y = np.sort(np.unique(y))
+    '''
     if not np.all(unique_y == np.arange(unique_y.size)):
         raise ValueError(
             'Values in y must be %s, instead got %s'
             % (np.arange(unique_y.size), unique_y))
-
+    '''
     n_samples, n_features = X.shape
 
     # convert from c to theta
@@ -278,7 +279,7 @@ class QuantileMulticlass(base.BaseEstimator):
     """
     def __init__(self, surrogate='AT', gammas=[0.5], alphas=[10], verbose=0, max_iter=10000, 
                  kernel_type='linear', kernel_params=[1], loss_function='logistic',
-                 opt_type='SGD', opt_params={}):
+                 opt_type='SGD', opt_params={}, classes_=[]):
         self.surrogate = surrogate
         self.gammas = gammas
         self.alphas = alphas
@@ -289,12 +290,14 @@ class QuantileMulticlass(base.BaseEstimator):
         self.loss_function = loss_function
         self.opt_type = opt_type
         self.opt_params = opt_params
+        self.classes_ = classes_
 
     def fit(self, X, y, sample_weight=None):
         _y = np.array(y).astype(np.int)
         if np.abs(_y - y).sum() > 0.1:
             raise ValueError('y must only contain integer values')
-        self.classes_ = np.unique(y)
+        if(self.classes_ == []):
+            self.classes_ = np.unique(y)
         self.n_class_ = self.classes_.max() - self.classes_.min() + 1
         
         manager = Manager()
@@ -309,11 +312,13 @@ class QuantileMulticlass(base.BaseEstimator):
             if(self.surrogate == 'AT'):
                 curr_classifier = QuantileAT(gamma=gamma, alpha=self.alphas[i], kernel_type=self.kernel_type, 
                                          opt_type=self.opt_type, opt_params=opt_params,
-                                         kernel_param=self.kernel_params[i], loss_function=self.loss_function)
+                                         kernel_param=self.kernel_params[i], loss_function=self.loss_function, 
+                                         classes_=self.classes_)
             elif(self.surrogate == 'IT'):
                 curr_classifier = QuantileIT(gamma=gamma, alpha=self.alphas[i], kernel_type=self.kernel_type, 
                                          opt_type=self.opt_type, opt_params=opt_params,
-                                         kernel_param=self.kernel_params[i], loss_function=self.loss_function)
+                                         kernel_param=self.kernel_params[i], loss_function=self.loss_function,
+                                         classes_=self.classes_)
             curr_args = (curr_classifier, X, y, gamma)
             arg_list.append(curr_args)
         p = Pool()    
@@ -363,7 +368,7 @@ class QuantileIT(base.BaseEstimator):
     """
     def __init__(self, gamma=0.5, alpha=1., verbose=0, max_iter=1000, 
                  kernel_type='linear', kernel_param=1, loss_function='logistic',
-                 opt_type = 'SGD', opt_params={'learning_rate': 1e-8}):
+                 opt_type = 'SGD', opt_params={'learning_rate': 1e-8}, classes_=[]):
         self.gamma = gamma
         self.alpha = alpha
         self.verbose = verbose
@@ -374,12 +379,14 @@ class QuantileIT(base.BaseEstimator):
         self.opt_type = opt_type
         self.opt_params = opt_params
         self.scale = 1
+        self.classes_ = classes_
 
     def fit(self, X, y, sample_weight=None):
         _y = np.array(y).astype(np.int)
         if np.abs(_y - y).sum() > 0.1:
             raise ValueError('y must only contain integer values')
-        self.classes_ = np.unique(y)
+        if(self.classes_ == []):
+            self.classes_ = np.unique(y)
         self.n_class_ = self.classes_.max() - self.classes_.min() + 1
         
         # Handle Kernel
@@ -420,7 +427,7 @@ class QuantileAT(base.BaseEstimator):
     """
     def __init__(self, gamma=0.5, alpha=1., verbose=0, max_iter=1000, 
                  kernel_type='linear', kernel_param=1, loss_function='logistic',
-                 opt_type = 'SGD', opt_params={'learning_rate': 1e-8}):
+                 opt_type = 'SGD', opt_params={'learning_rate': 1e-8}, classes_=[]):
         self.gamma = gamma
         self.alpha = alpha
         self.verbose = verbose
@@ -431,12 +438,14 @@ class QuantileAT(base.BaseEstimator):
         self.opt_type = opt_type
         self.opt_params = opt_params
         self.scale = 1
+        self.classes_ = classes_
 
     def fit(self, X, y, sample_weight=None):
         _y = np.array(y).astype(np.int)
         if np.abs(_y - y).sum() > 0.1:
             raise ValueError('y must only contain integer values')
-        self.classes_ = np.unique(y)
+        if(self.classes_ == []):
+            self.classes_ = np.unique(y)
         self.n_class_ = self.classes_.max() - self.classes_.min() + 1
         
         # Handle Kernel

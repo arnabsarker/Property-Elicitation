@@ -38,7 +38,7 @@ def cross_validateATIT(kernels, kernel_params, reg_params, X_train, y_train,
         for result in p.imap_unordered(single_run_star, arg_list):
             writer.writerow(result)
 
-def cross_validate_kernel_grid(kernel_type, kernel_params, reg_params, X_train, y_train, quantiles, 
+def cross_validate_kernel_grid(surrogate, kernel_type, kernel_params, reg_params, X_train, y_train, classes, quantiles, 
                               loss_function, opt_type, opt_params, cv_dir_name_base):
     p = Pool()
     manager = Manager()
@@ -61,12 +61,11 @@ def cross_validate_kernel_grid(kernel_type, kernel_params, reg_params, X_train, 
             if not os.path.exists(cv_dir_name):
                 os.makedirs(cv_dir_name + '/loss')
                 
-            for surrogate in ['AT', 'IT']:
-                for reg_param in reg_params:
-                    for kernel_param in kernel_params:
-                        all_args = (surrogate, fold, kernel_param, reg_param, curr_X_train, curr_y_train, curr_X_test, 
-                                    curr_y_test, quantile, loss_function, kernel_type, opt_type, opt_params, cv_dir_name)
-                        arg_list.append(all_args)
+            for reg_param in reg_params:
+                for kernel_param in kernel_params:
+                    all_args = (surrogate, fold, kernel_param, reg_param, curr_X_train, curr_y_train, curr_X_test, 
+                                curr_y_test, classes, quantile, loss_function, kernel_type, opt_type, opt_params, cv_dir_name)
+                    arg_list.append(all_args)
     
     ## Initialize results dictionary
     all_results = manager.dict()

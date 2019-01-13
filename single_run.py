@@ -48,7 +48,7 @@ def single_run_opt(surrogate, kernel_param, reg_param, X_train, y_train, X_test,
     return (opt_type, surrogate, quantile, loss_function, kernel_type, kernel_param, 
             reg_param, abs_loss, abs_loss_in, end - start)
 
-def single_run(surrogate, fold, kernel_param, reg_param, X_train, y_train, X_test, y_test,
+def single_run(surrogate, fold, kernel_param, reg_param, X_train, y_train, X_test, y_test, classes,
                quantile, loss_function, kernel_type, opt_type, opt_params, cv_dir_name):
     a = quantile
     y_quantiles = y_test #compute_alpha_quantile(X_test, a).astype(int) only for synthetic data
@@ -59,7 +59,7 @@ def single_run(surrogate, fold, kernel_param, reg_param, X_train, y_train, X_tes
         opt_params['plot_file'] = cv_dir_name + '/loss/' + name
         start = timer()
         clf = QuantileIT(gamma=a, alpha=reg_param, kernel_type=kernel_type, opt_type=opt_type, opt_params=opt_params,
-                              kernel_param=kernel_param, loss_function=loss_function)
+                              kernel_param=kernel_param, loss_function=loss_function, classes_=classes)
         clf.fit(X_train, y_train)
         preds = clf.predict(X_test)
         end = timer()
@@ -70,7 +70,7 @@ def single_run(surrogate, fold, kernel_param, reg_param, X_train, y_train, X_tes
 
         start = timer()
         clf = QuantileAT(gamma=a, alpha=reg_param, kernel_type=kernel_type, opt_type=opt_type, opt_params=opt_params,
-                              kernel_param=kernel_param, loss_function=loss_function)
+                              kernel_param=kernel_param, loss_function=loss_function, classes_=classes)
         clf.fit(X_train, y_train)
         preds = clf.predict(X_test)
         end = timer()
