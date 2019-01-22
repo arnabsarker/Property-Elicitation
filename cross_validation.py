@@ -106,8 +106,8 @@ def cross_validate_kernel_grid(surrogate, kernel_type, kernel_params, reg_params
     AT_params = {}
     IT_params = {}
     for quantile in quantiles:
-        AT_dict = all_results[quantile]['AT']
-        IT_dict = all_results[quantile]['IT']
+        AT_dict = dict(all_results[quantile]['AT'])
+        IT_dict = dict(all_results[quantile]['IT'])
         
         AT_reg, AT_kern = min(AT_dict, key=AT_dict.get).split('_')
         IT_reg, IT_kern = min(IT_dict, key=IT_dict.get).split('_')
