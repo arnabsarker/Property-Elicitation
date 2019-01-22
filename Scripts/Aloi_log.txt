@@ -1,0 +1,6 @@
+Retrieving data as matrices
+Normalizing data
+Absolute loss of score-based predictions
+228.5023611111111
+Absolute loss of vote-based predictions
+228.5023611111111

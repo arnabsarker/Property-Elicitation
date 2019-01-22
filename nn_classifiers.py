@@ -60,11 +60,11 @@ def get_surrogate_loss(gamma, thetas, n_class, surrogate_type, loss_function):
         loss_fd[lower_indices] = gamma
     
     thetas = tf.cast(thetas, tf.float32)
-    
+    thetas_tf = tf.convert_to_tensor(thetas)
     def surrogate_loss(predicted_y, desired_y):
         
         ## Compute alphas from thetas and predicted_y
-        Alpha = tf.subtract(thetas, predicted_y)
+        Alpha = tf.subtract(thetas_tf, predicted_y)
 
         ## Compute signs from desired_y
         S = tf.sign(tf.subtract(tf.cast(tf.range(n_class - 1), tf.float32), 
@@ -73,6 +73,8 @@ def get_surrogate_loss(gamma, thetas, n_class, surrogate_type, loss_function):
         ## Get forward difference for loss function for each sample
         loss_fd_tf = tf.cast(tf.convert_to_tensor(loss_fd), tf.float32)
         indices = tf.reshape(desired_y, [-1])
+        indices = tf.minimum(indices, (n_class - 1) * tf.ones_like(indices))
+        indices = tf.maximum(indices, tf.zeros_like(indices))
         loss_fd_tf = tf.gather(loss_fd_tf, tf.cast(indices, tf.int32))
         
         ## Compute loss function from loss_fd, signs, and alphas
@@ -90,7 +92,7 @@ def weighted_absolute_loss(gamma):
                               + gamma * tf.maximum(tf.subtract(desired_y, predicted_y), tf.zeros_like(desired_y)))
     return weighted_lf
     
-def optimize_model(thetas, X, y, theta0, n_class, gamma, max_iter, surrogate_type, loss_function):
+def optimize_model(thetas, X, y, theta0, n_class, gamma, max_iter, surrogate_type, loss_function, use_multiprocessing):
     num_samples, num_dimensions = X.shape
     training_loss = get_surrogate_loss(gamma, thetas, n_class, surrogate_type, loss_function)
 
@@ -101,11 +103,11 @@ def optimize_model(thetas, X, y, theta0, n_class, gamma, max_iter, surrogate_typ
         keras.layers.Dense(1, activation=tf.nn.relu)
     ])
 
-    model.compile(optimizer=tf.train.GradientDescentOptimizer(learning_rate=1e-2), 
+    model.compile(optimizer=tf.train.AdamOptimizer(), 
                   loss=training_loss,
                   metrics=['accuracy', weighted_absolute_loss(gamma)])
 
-    model.fit(X, y, epochs=int(max_iter / num_samples))
+    model.fit(X, y, epochs= int(max_iter / num_samples), use_multiprocessing=use_multiprocessing)
     
     return model
     
@@ -124,7 +126,7 @@ def obj_margin(x0, preds, y, model, n_class, weights, L, loss_function):
     elif(loss_function == 'hinge'):
         lf = hinge_loss_np
         
-    err = loss_fd.T[:,:,0] * lf(np.multiply(-S, Alpha))
+    err = np.dot(loss_fd.T, lf(np.multiply(-S, Alpha)))
     obj = np.mean(err)
     
     return obj
@@ -143,8 +145,9 @@ def grad_margin(x0, preds, y, model, n_class, weights, L, loss_function):
         lf = sigmoid
     elif(loss_function == 'hinge'):
         lf = hinge_derive
-      
-    Sigma = S * loss_fd.T * lf(np.multiply(-S, Alpha))
+        
+    Sigma = np.dot(S, loss_fd.T)
+    Sigma = np.dot(Sigma, lf(np.multiply(-S, Alpha)))
 
     grad_theta = -Sigma.sum(0)
     return grad_theta
@@ -165,13 +168,13 @@ def optimize_thetas(model, old_thetas, X, y, n_class, gamma, max_iter, surrogate
     L[np.tril_indices(n_class-1)] = 1
     
     new_thetas = optimize_batch(obj_function=obj_margin, x0=old_thetas, method='SGD', gradient=grad_margin, 
-                   opt_params={'learning_rate': 1e-4, 'batch_size': 100}, bounds=None, epsilon=1e-8, max_iters=100, 
-                   min_iters=500, args=(curr_preds, y, model, n_class, loss_fd, L, loss_function))
+                   opt_params={'learning_rate': 1e-4, 'batch_size': 10}, bounds=None, epsilon=1e-6, max_iters=100, 
+                   min_iters=50, args=(curr_preds, y, model, n_class, loss_fd, L, loss_function))
     return new_thetas
 
-def train_quantile_nn(X, y, theta0, n_class, gamma, max_iter, surrogate_type, loss_function):
+def train_quantile_nn(X, y, theta0, n_class, gamma, max_iter, surrogate_type, loss_function, use_multiprocessing):
     sess = tf.Session()
-    num_iters = 5
+    num_iters = 15
     thetas = theta0
     old_thetas = sess.run(thetas)
     
@@ -179,14 +182,15 @@ def train_quantile_nn(X, y, theta0, n_class, gamma, max_iter, surrogate_type, lo
     best_model = None
     best_thetas = None
     for i in range(0, num_iters):
-        model = optimize_model(thetas, X, y, theta0, n_class, gamma, max_iter, surrogate_type, loss_function)
+        model = optimize_model(thetas, X, y, theta0, n_class, gamma, max_iter, 
+                               surrogate_type, loss_function, use_multiprocessing)
         thetas = optimize_thetas(model, old_thetas, X, y, n_class, gamma, max_iter, surrogate_type, loss_function)
         
         curr_loss, curr_acc, curr_weighted = model.evaluate(X, y)
-        if(curr_loss < best_loss):
+        if(curr_weighted < best_loss):
             best_model = copy.copy(model)
             best_thetas = copy.copy(thetas)
-            best_loss = curr_loss
+            best_loss = curr_weighted
             
         old_thetas = thetas
         
@@ -198,7 +202,7 @@ def nn_threshold_predict(X, nn, theta):
     """
     tmp = theta.reshape((1, np.size(theta))) - nn.predict(X)
     pred = np.sum(tmp < 0, axis=1).astype(np.int)
-    return np.matrix(pred).reshape(np.size(pred), 1)
+    return np.array(pred)
 
 class NeuralNetQuantile(base.BaseEstimator):
     """
@@ -211,7 +215,7 @@ class NeuralNetQuantile(base.BaseEstimator):
         self.surrogate_type = surrogate_type
         self.loss_function = loss_function
 
-    def fit(self, X, y):
+    def fit(self, X, y, use_multiprocessing=False):
         _y = np.array(y).astype(np.int)
         if np.abs(_y - y).sum() > 0.1:
             raise ValueError('y must only contain integer values')
@@ -223,9 +227,9 @@ class NeuralNetQuantile(base.BaseEstimator):
         theta0 = tf.convert_to_tensor(np.arange(self.n_class_ - 1))
         
         self.nn_, self.theta_ = train_quantile_nn(X, y, theta0, self.n_class_, self.gamma, self.max_iter, 
-                                                  self.surrogate_type, self.loss_function)
+                                                  self.surrogate_type, self.loss_function, use_multiprocessing)
         
-        return self.nn_
+        return self
 
     def predict(self, X):
         return nn_threshold_predict(X, self.nn_, self.theta_) +\
