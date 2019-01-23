@@ -7,6 +7,7 @@ from tensorflow import keras
 from sklearn import base
 import numpy as np
 import copy
+# from multiprocessing import Pool, Manager
 
 def sigmoid(t):
     # sigmoid function, 1 / (1 + exp(-t))
@@ -42,6 +43,10 @@ def hinge_loss(score):
 
 def logistic_loss(score):
     return tf.log1p(tf.exp(tf.negative(score)))
+
+def mode(array):
+    most = max(list(map(array.count, array)))
+    return list(set(filter(lambda x: array.count(x) == most, array)))
 
 def get_surrogate_loss(gamma, thetas, n_class, surrogate_type, loss_function):
     if(loss_function == 'hinge'):
@@ -174,7 +179,7 @@ def optimize_thetas(model, old_thetas, X, y, n_class, gamma, max_iter, surrogate
 
 def train_quantile_nn(X, y, theta0, n_class, gamma, max_iter, surrogate_type, loss_function, use_multiprocessing):
     sess = tf.Session()
-    num_iters = 15
+    num_iters = 2
     thetas = theta0
     old_thetas = sess.run(thetas)
     
@@ -203,6 +208,19 @@ def nn_threshold_predict(X, nn, theta):
     tmp = theta.reshape((1, np.size(theta))) - nn.predict(X)
     pred = np.sum(tmp < 0, axis=1).astype(np.int)
     return np.array(pred)
+
+def nn_threshold_proba(X, nn, theta):
+    """
+    Class numbers are assumed to be between 0 and k-1
+    """
+    
+    eta = theta - np.asarray(nn.predict(X), dtype=np.float64)
+    prob = np.pad(
+        sigmoid(eta),
+        pad_width=((0, 0), (1, 1)),
+        mode='constant',
+        constant_values=(0, 1))
+    return np.diff(prob)
 
 class NeuralNetQuantile(base.BaseEstimator):
     """
@@ -234,3 +252,73 @@ class NeuralNetQuantile(base.BaseEstimator):
     def predict(self, X):
         return nn_threshold_predict(X, self.nn_, self.theta_) +\
          self.classes_.min()
+    
+    def predict_proba(self, X):
+        return nn_threshold_proba(X, self.nn_, self.theta_)
+    
+class NeuralNetQuantileMulticlass(base.BaseEstimator):
+    """
+    Classifier that implements the ordinal logistic model for quantile estimation
+
+    """
+    def __init__(self, surrogate_type='AT', gammas=[0.5], max_iter=1000, loss_function='logistic'):
+        self.surrogate_type = surrogate_type
+        self.gammas = gammas
+        self.max_iter = max_iter
+        self.loss_function = loss_function
+
+    def fit(self, X, y, sample_weight=None):
+#         manager = Manager()
+#         classifiers = manager.dict()
+#         arg_list = []
+
+        classifiers = {}
+        for i, gamma in enumerate(self.gammas):
+            curr_classifier = NeuralNetQuantile(gamma=gamma, max_iter=self.max_iter, 
+                 surrogate_type=self.surrogate_type, loss_function=self.loss_function)
+            
+            curr_classifier.fit(X, y, use_multiprocessing=False)
+            classifiers[gamma] = curr_classifier
+            self.n_class_ = curr_classifier.n_class_
+#             arg_list.append(curr_classifier)
+        
+#         p = Pool()    
+#         def nn_one_quantile_fit(clf):
+#             return clf.fit(X, y, use_multiprocessing=False)
+        
+#         for result in p.imap_unordered(nn_one_quantile_fit, arg_list):
+#             ## nothing needed here
+#             print('Done one quantile')
+        
+#         p.close()
+        self.classifiers = classifiers
+        return self
+
+    def predict(self, X):
+        n = X.shape[0]
+        s = len(self.gammas)
+        all_preds = np.zeros((n, s))
+        for i, gamma in enumerate(self.gammas):
+            all_preds[:, i] = self.classifiers[gamma].predict(X)
+            
+        preds = np.zeros((n, 1))
+        for i in range(1, n):
+            quantiles = all_preds[i, :]
+            preds[i, :] = np.random.choice(mode(quantiles.tolist()))
+        
+        return preds
+    
+    def predict_score(self, X):
+        n = X.shape[0]
+        k = self.n_class_
+        all_scores = np.zeros((n, k))
+        
+        for i, gamma in enumerate(self.gammas):
+            all_scores = all_scores + self.classifiers[gamma].predict_proba(X)
+            
+        preds = np.zeros((n, 1))
+        for i in range(1, n):
+            curr_scores = all_scores[i, :]
+            preds[i, :] = np.argmax(curr_scores)
+        
+        return preds
