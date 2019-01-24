@@ -1,4 +1,6 @@
-from classifiers import *
+import sys
+sys.path.add('..')
+from nn_classifiers import *
 import numpy as np
 import csv
 from cross_validation import cross_validate_kernel_grid, get_params
@@ -9,12 +11,12 @@ from sklearn import metrics
 def log(string, style='a'):
     print(string)
     global dataset_name
-    file_name = dataset_name + '_log.txt'
+    file_name = dataset_name + '_nn_log.txt'
     with open(file_name, style) as file:
         file.write(str(string) + '\n')
 
 if __name__ == '__main__':
-    dataset_name = 'RCVRbf'
+    dataset_name = 'RCV'
     
     train_path = 'datasets/rcv1_train5000.csv'
     test_path = 'datasets/rcv1_test5000.csv'
@@ -34,14 +36,6 @@ if __name__ == '__main__':
     X_train, y_train = (X_train - np.mean(X_train)), y_train
     X_test, y_test = (X_test - np.mean(X_test)) , y_test
     
-    '''
-    log('Generating Data', style='w')
-    k = 100
-    n = 10000
-    X_train, y_train = generate_linear_complex_data(k,n)
-    X_test, y_test = generate_linear_complex_data(k,n)
-    '''
-
     y_train = np.array(y_train).astype(int)
     y_test = np.array(y_test).astype(int)
 
