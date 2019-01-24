@@ -58,7 +58,7 @@ def optimize_batch(obj_function=None, x0=None, method='SGD', gradient=None,
             v_hat = np.maximum(v_hat, v)
             x = x - (eta / (np.sqrt(v_hat) + eps) ) * m
             
-        new_loss = evaluate_loss(obj_function, x, args)
+        new_loss = evaluate_loss(obj_function, batch_size, x, args)
         
         if(plot):
             losses.append(new_loss)
@@ -82,14 +82,26 @@ def optimize_batch(obj_function=None, x0=None, method='SGD', gradient=None,
     
     return best_x
 
-def evaluate_loss(obj_function, x, args):    
-    return obj_function(x, *args)
+def evaluate_loss(obj_function, batch_size, x, args):    
+    X = args[0]
+    y = args[1]
+
+    batch_size_loss = min(X.shape[0], batch_size * 10)
+    idx = np.random.choice(X.shape[0], size=batch_size, replace=False)
+    X_batch = X[idx, :]
+    y_batch = y[idx]
+
+    new_args = list(args)
+    new_args[0] = X_batch
+    new_args[1] = y_batch
+    new_args = tuple(new_args)
+    return obj_function(x, *new_args)
 
 def evaluate_gradient(gradient, batch_size, x, args):
     X = args[0]
     y = args[1]
     
-    idx = np.random.randint(X.shape[0], size=batch_size)
+    idx = np.random.choice(X.shape[0], size=batch_size, replace=False)
     X_batch = X[idx, :]
     y_batch = y[idx]
     

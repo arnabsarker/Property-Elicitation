@@ -108,7 +108,7 @@ def optimize_model(thetas, X, y, theta0, n_class, gamma, max_iter, surrogate_typ
         keras.layers.Dense(1, activation=tf.nn.relu)
     ])
 
-    model.compile(optimizer=tf.train.AdamOptimizer(), 
+    model.compile(optimizer=tf.train.AdamOptimizer(learning_rate=1e-4), 
                   loss=training_loss,
                   metrics=['accuracy', weighted_absolute_loss(gamma)])
 
@@ -179,7 +179,7 @@ def optimize_thetas(model, old_thetas, X, y, n_class, gamma, max_iter, surrogate
 
 def train_quantile_nn(X, y, theta0, n_class, gamma, max_iter, surrogate_type, loss_function, use_multiprocessing):
     sess = tf.Session()
-    num_iters = 2
+    num_iters = 10
     thetas = theta0
     old_thetas = sess.run(thetas)
     
